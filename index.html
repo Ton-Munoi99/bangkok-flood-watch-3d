@@ -5,19 +5,66 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bangkok Flood Watch 3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="map"></div>
-<div class="panel layers">
-  <label><input type="checkbox" autocomplete="off" id="lySat"> ภาพดาวเทียม</label>
-  <label><input type="checkbox" autocomplete="off" id="lyBuild" checked> อาคาร 3D</label>
-  <label><input type="checkbox" autocomplete="off" id="lyTerrain"> ภูมิประเทศ (Terrain)</label>
-  <p class="note" id="terrainNote" hidden>
-    Terrain ความละเอียด ~30 ม. — พื้นที่ กทม. ราบมาก (ส่วนใหญ่ 0–2 ม. รทก.)
-    จึงไม่เหมาะเป็นข้อมูลความสูงหลักสำหรับประเมินน้ำท่วม
-  </p>
+
+<div class="top">
+  <div class="stats">
+    <div class="panel badge"><div class="lbl" data-i="riskTitle"></div><div class="val" id="riskValue">--</div><div class="sub" id="riskLabel"></div></div>
+    <div class="panel badge"><div class="lbl" id="waterTitle"></div><div class="val" id="waterValue">--</div><div class="sub" id="waterSub"></div></div>
+    <div class="panel badge"><div class="lbl" data-i="floodedTitle"></div><div class="val" id="floodCount">--</div><div class="sub" id="floodedSub"></div></div>
+    <div class="panel badge"><div class="lbl" data-i="rainTitle"></div><div class="val" id="rainValue">--</div><div class="sub" id="rainSub"></div></div>
+  </div>
+  <div class="tools">
+    <input class="panel search" id="search" list="districtList" autocomplete="off" data-ph="search">
+    <datalist id="districtList"></datalist>
+    <div class="panel lang"><button id="langTH" class="active">TH</button><button id="langEN">EN</button></div>
+  </div>
+  <div class="panel banner" id="simBanner" hidden data-i="simBanner"></div>
+  <div class="panel banner" id="mockBanner" hidden></div>
 </div>
+
+<aside class="panel sidebar" id="sidebar">
+  <div class="side-head">
+    <b data-i="sideTitle"></b>
+    <button id="refresh" class="btn small" data-i="refresh"></button>
+  </div>
+  <p class="summary" id="summary"></p>
+  <div id="sideBody"></div>
+</aside>
+<button class="panel side-toggle" id="sideToggle" aria-label="list">☰</button>
+
+<div class="bottom">
+  <div class="panel sim">
+    <label class="row"><input type="checkbox" id="simMode" autocomplete="off"> <span data-i="simMode"></span></label>
+    <div id="simControls" hidden>
+      <button class="btn" id="playBtn"></button>
+      <div class="row"><span>0</span><input type="range" id="waterSlider" min="0" max="180" value="60" autocomplete="off"><span>180 cm</span></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--l0)"></i><span data-i="l0"></span></span>
+      <span><i class="dot" style="background:var(--l1)"></i><span data-i="l1"></span></span>
+      <span><i class="dot" style="background:var(--l2)"></i><span data-i="l2"></span></span>
+      <span><i class="dot" style="background:var(--l3)"></i><span data-i="l3"></span></span>
+    </div>
+  </div>
+  <details class="panel layers" open>
+    <summary data-i="layers"></summary>
+    <label><input type="checkbox" autocomplete="off" id="lyRoad" checked> <span data-i="lyRoad"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lyCanal" checked> <span data-i="lyCanal"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lyRain"> <span data-i="lyRain"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lyReports" checked> <span data-i="lyReports"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lyDistrict" checked> <span data-i="lyDistrict"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lyBuild" checked> <span data-i="lyBuild"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lySat"> <span data-i="lySat"></span></label>
+    <label><input type="checkbox" autocomplete="off" id="lyTerrain"> <span data-i="lyTerrain"></span></label>
+    <p class="note" id="terrainNote" hidden data-i="terrainNote"></p>
+    <div class="sources" id="sources"></div>
+  </details>
+</div>
+
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
