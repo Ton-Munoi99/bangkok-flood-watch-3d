@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bangkok Flood Watch 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="map"></div>
+<div class="panel layers">
+  <label><input type="checkbox" autocomplete="off" id="lySat"> ภาพดาวเทียม</label>
+  <label><input type="checkbox" autocomplete="off" id="lyBuild" checked> อาคาร 3D</label>
+  <label><input type="checkbox" autocomplete="off" id="lyTerrain"> ภูมิประเทศ (Terrain)</label>
+  <p class="note" id="terrainNote" hidden>
+    Terrain ความละเอียด ~30 ม. — พื้นที่ กทม. ราบมาก (ส่วนใหญ่ 0–2 ม. รทก.)
+    จึงไม่เหมาะเป็นข้อมูลความสูงหลักสำหรับประเมินน้ำท่วม
+  </p>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
