@@ -13,6 +13,14 @@ node scripts/check-sources.ts   # parser self-check
 
 `VITE_DATA_MODE=mock` (see `.env.example`) forces the saved snapshots in `src/data/mock/`. In live mode each source falls back to its snapshot on failure, and the page always labels snapshot data.
 
+## History (7 days)
+
+- `netlify/functions/collect.mts` runs every 10 min on Netlify and stores readings in Netlify Blobs (`history` store, one JSON file per Bangkok day, older than 7 days deleted).
+- `netlify/functions/history.mts` serves them at `/api/history/meta` and `/api/history/YYYY-MM-DD`; the page's date/time picker reads these.
+- `scripts/backfill.ts` fills the days before the collector existed (road-flood and canal graphs from ThaiWater, Traffy by date). Run once: `NETLIFY_SITE_ID=… NETLIFY_AUTH_TOKEN=… node scripts/backfill.ts`, or `--dry <dir>` to write files locally. For local UI testing: `HISTORY_DIR=<dir> npm run dev`.
+- History stores no Traffy report text, photos or addresses — only id, position, time and state.
+- The collector runs outside Thailand, so it cannot read weather.bangkok.go.th directly (Thai IPs only). Road-flood history comes from ThaiWater's relay of the same BMA sensors, and has gaps whenever that relay stalls.
+
 ## Data sources & attribution
 
 | Layer | Source | Notes |

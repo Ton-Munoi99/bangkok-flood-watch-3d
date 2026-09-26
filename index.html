@@ -22,13 +22,20 @@
     <datalist id="districtList"></datalist>
     <div class="panel lang"><button id="langTH" class="active">TH</button><button id="langEN">EN</button></div>
   </div>
+  <div class="panel timebar">
+    <label for="histAt" data-i="histLbl"></label>
+    <input type="datetime-local" id="histAt" step="600" autocomplete="off">
+    <button id="histLive" class="btn small live-on" data-i="liveBtn"></button>
+  </div>
+  <div class="panel banner hist" id="histBanner" hidden></div>
+  <div class="panel banner" id="histError" hidden data-i="histFail"></div>
   <div class="panel banner" id="simBanner" hidden data-i="simBanner"></div>
   <div class="panel banner" id="mockBanner" hidden></div>
 </div>
 
 <aside class="panel sidebar" id="sidebar">
   <div class="side-head">
-    <b data-i="sideTitle"></b>
+    <b id="sideTitle"></b>
     <button id="refresh" class="btn small" data-i="refresh"></button>
   </div>
   <p class="summary" id="summary"></p>

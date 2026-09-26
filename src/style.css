@@ -95,3 +95,8 @@ input[type=checkbox] { accent-color: var(--accent); }
   .layers:not([open]) { padding: 8px 10px; }
 }
 .sidebar details summary { cursor: pointer; margin-bottom: 6px; }
+.timebar { display: flex; align-items: center; gap: 8px; padding: 5px 8px; align-self: flex-start; font-size: 12px; color: var(--text-muted); }
+.timebar input { background: transparent; border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 6px; color-scheme: dark; }
+.timebar .btn { margin: 0; }
+.live-on { background: rgba(62, 213, 152, .18); border-color: var(--l0); color: var(--l0); }
+.banner.hist { border-color: var(--accent); color: var(--accent); }

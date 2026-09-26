@@ -3,6 +3,9 @@
 // `snapshot: true` so the UI can label it. Snapshots keep the raw API schema, so
 // live and snapshot data go through the same parser.
 
+import { TW as TW_BASE, bkkMs, situation, slot, slotMs, type DayFile, type Meta } from './history.ts';
+export { bkkMs };
+
 export type Level = 0 | 1 | 2 | 3; // ปกติ / เฝ้าระวัง / เสี่ยงสูง / ท่วมหนัก
 
 export interface RoadFlood {
@@ -21,8 +24,6 @@ export interface Result<T> { items: T[]; snapshot: boolean; stale?: boolean; err
 const FORCE_MOCK = import.meta.env?.VITE_DATA_MODE === 'mock';
 export const STALE_MS = 6 * 3600 * 1000;
 
-/** BMA/ThaiWater timestamps are Bangkok local time without an offset. */
-export const bkkMs = (s: string) => Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(s) ? s : `${s.replace(' ', 'T')}+07:00`);
 
 async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]>, timeOf: (x: T) => string): Promise<Result<T>> {
   if (FORCE_MOCK) return { items: await mock(), snapshot: true };
@@ -87,15 +88,48 @@ const parseBma = (raw: BmaRaw[]): RoadFlood[] =>
     };
   });
 
+/** Where the live road data came from on the last fetch ('' = BMA directly). */
+export let roadVia = '';
+
 export const fetchRoadFlood = () =>
   withFallback(
-    async () => parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/')).text(), 'const floodData =') as BmaRaw[]),
+    async () => {
+      try {
+        const rows = parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/')).text(), 'const floodData =') as BmaRaw[]);
+        roadVia = '';
+        return rows;
+      } catch (e) {
+        // BMA's site only answers Thai IPs; ThaiWater relays the same sensors but sometimes stalls,
+        // so only accept its readings if they are under an hour old.
+        const fresh = await roadFromThaiWater(Date.now() - 3600_000);
+        if (!fresh.length) throw e;
+        roadVia = 'thaiwater';
+        return fresh;
+      }
+    },
     async () => parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]),
     (r) => r.updated,
   );
 
+async function roadFromThaiWater(since: number): Promise<RoadFlood[]> {
+  const rows = (await getJson(`${TW_BASE}/flood_road`)).data as {
+    floodroad_datetime: string; floodroad_value: number | null;
+    station: { floodroad_name: { th: string }; floodroad_lat: number; floodroad_long: number; floodroad_oldcode: string };
+  }[];
+  return rows
+    .filter((r) => r.floodroad_value != null && r.station.floodroad_lat && bkkMs(r.floodroad_datetime) >= since)
+    .map((r) => {
+      const cm = Number(r.floodroad_value) || 0, name = r.station.floodroad_name.th.replace(/\s+/g, ' ').trim();
+      return {
+        id: r.station.floodroad_oldcode, nameTh: name, nameEn: name, lng: r.station.floodroad_long, lat: r.station.floodroad_lat,
+        cm, maxCm: null, start: null, updated: r.floodroad_datetime.replace(' ', 'T'), level: roadLevel(cm),
+        url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(r.station.floodroad_oldcode)}`,
+      };
+    });
+}
+
 // ---------- ThaiWater (คลังข้อมูลน้ำแห่งชาติ, สสน.) — public API, CORS enabled ----------
-const TW = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public';
+const TW = TW_BASE;
 
 interface TwStation {
   id: number;
@@ -159,3 +193,59 @@ export const fetchReports = () =>
     async () => parseTraffy((await import('./mock/traffy.json')).default as never, 0),
     (r) => r.time,
   );
+
+// ---------- History (recorded every 10 min by netlify/functions/collect.mts) ----------
+export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report> }
+const WINDOW = 3600_000; // a reading counts as "current" at time T for up to an hour
+
+export async function loadHistory(at: number): Promise<Snapshot> {
+  const get = async (key: string) => {
+    const r = await fetch(`/api/history/${key}`, { signal: AbortSignal.timeout(15_000) });
+    return r.ok ? r.json() : null;
+  };
+  const d0 = slot(at).day, d1 = slot(at - DAY).day;
+  const [meta, today, prev] = (await Promise.all([get('meta'), get(d0), get(d1)])) as [Meta | null, DayFile | null, DayFile | null];
+  if (!meta) throw new Error('history unavailable');
+  const files: [string, DayFile][] = [];
+  if (prev) files.push([d1, prev]);
+  if (today) files.push([d0, today]);
+
+  // Buckets inside (at - WINDOW, at], oldest first.
+  const inWindow = (k: 'road' | 'canal' | 'rain') =>
+    files.flatMap(([day, f]) => Object.entries(f[k]).map(([b, v]) => ({ ms: slotMs(day, b), stamp: `${day}T${b}`, v })))
+      .filter((x) => x.ms <= at && x.ms > at - WINDOW)
+      .sort((a, b) => a.ms - b.ms);
+
+  // Road: latest bucket only — stations absent from a bucket read 0 cm.
+  const roadB = inWindow('road').at(-1);
+  const dayMax = (code: string) => Math.max(0, ...Object.entries(today?.road ?? {}).filter(([b]) => slotMs(d0, b) <= at).map(([, v]) => v[code] ?? 0));
+  const road: RoadFlood[] = roadB ? Object.entries(meta.road).map(([code, m]) => {
+    const cm = roadB.v[code] ?? 0;
+    return {
+      id: code, nameTh: m.th, nameEn: m.en || m.th, lng: m.lng, lat: m.lat, cm, maxCm: dayMax(code) || null, start: null,
+      updated: roadB.stamp, level: roadLevel(cm), url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(code)}`,
+    };
+  }) : [];
+
+  // Canal/rain: each station's most recent value in the window.
+  const latest = (k: 'canal' | 'rain') => {
+    const out = new Map<string, { v: number; stamp: string }>();
+    for (const x of inWindow(k)) for (const [id, v] of Object.entries(x.v)) out.set(id, { v, stamp: x.stamp });
+    return out;
+  };
+  const canals: Canal[] = [...latest('canal')].filter(([id]) => meta.canal[id]).map(([id, { v, stamp }]) => {
+    const m = meta.canal[id];
+    return { id, nameTh: m.th, nameEn: m.en, lng: m.lng, lat: m.lat, wl: v, bank: m.bank, situation: situation(v, m.ground, m.bank), updated: stamp, agency: m.agency };
+  });
+  const rain: Rain[] = [...latest('rain')].filter(([id]) => meta.rain[id]).map(([id, { v, stamp }]) => {
+    const m = meta.rain[id];
+    return { id, nameTh: m.th, nameEn: m.en, lng: m.lng, lat: m.lat, mm: v, updated: stamp };
+  });
+  // History keeps no report text/photos/addresses (privacy) — only position, time and state.
+  const reports: Report[] = files.flatMap(([, f]) => Object.entries(f.reports))
+    .filter(([, r]) => Date.parse(r[2]) <= at && Date.parse(r[2]) > at - DAY)
+    .map(([id, [lng, lat, time, state]]) => ({ id, lng, lat, time, state, text: '', address: '', photo: '' }));
+
+  const res = <T>(items: T[]): Result<T> => ({ items, snapshot: false, stale: items.length === 0 });
+  return { road: res(road), canals: res(canals), rain: res(rain), reports: { items: reports, snapshot: false } };
+}

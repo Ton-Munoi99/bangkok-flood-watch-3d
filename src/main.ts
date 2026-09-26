@@ -6,7 +6,7 @@ import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs,
   type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
@@ -18,7 +18,10 @@ const T = {
     riskTitle: 'ดัชนีความเสี่ยงน้ำท่วมรวม', waterReal: 'น้ำท่วมถนนสูงสุด', waterSim: 'ระดับน้ำจำลอง',
     floodedTitle: 'เขตที่มีน้ำท่วมขัง', floodedSub: 'จากเซนเซอร์ กทม.', floodedSim: 'จำลอง: เขตที่น้ำล้น', msl: 'ม.รทก.', rainTitle: 'ฝนสะสม 24 ชม. สูงสุด', rainLbl: 'ฝน 24 ชม.',
     search: 'ค้นหาเขต เช่น จตุจักร, บางเขน', simBanner: 'โหมดจำลอง — สีเขตคำนวณจากความสูงพื้นที่สมมติ ไม่ใช่สถานการณ์จริง',
-    sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
+    sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', sideTitleAt: (t: string) => `สถานการณ์ ณ ${t}`,
+    liveBtn: '● สด', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
+    histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
+    histRange: 'ย้อนหลังได้ 7 วัน · ข้อมูลฝนมีเฉพาะช่วงที่ระบบเริ่มเก็บ', histReport: 'แจ้งน้ำท่วม (ข้อมูลย้อนหลังไม่เก็บข้อความ/รูปภาพ)', via: 'ผ่าน สสน.', histSrc: 'ย้อนหลัง', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
     play: '▶ จำลองฝนตก', pause: '⏸ หยุด', layers: 'ชั้นข้อมูล',
     l0: 'ปกติ', l1: 'เฝ้าระวัง', l2: 'เสี่ยงสูง', l3: 'ท่วมหนัก',
     lyRoad: 'เซนเซอร์น้ำท่วมถนน (กทม.)', lyCanal: 'ระดับน้ำคลอง/แม่น้ำ', lyRain: 'ฝน 24 ชม.', lyReports: 'ประชาชนแจ้งน้ำท่วม (Traffy)',
@@ -41,7 +44,7 @@ const T = {
     summary: (s: Summary) =>
       s.pts === 0
         ? 'ขณะนี้เซนเซอร์ของ กทม. ยังไม่พบน้ำท่วมขังบนถนน'
-        : `ขณะนี้มีน้ำท่วมขังถนน <b>${s.pts} จุด</b> ใน <b>${s.districts} เขต</b> · ท่วมหนัก (≥20 ซม.) <b>${s.heavy} จุด</b> · หนักสุดที่ ${s.worst}`
+        : `มีน้ำท่วมขังถนน <b>${s.pts} จุด</b> ใน <b>${s.districts} เขต</b> · ท่วมหนัก (≥20 ซม.) <b>${s.heavy} จุด</b> · หนักสุดที่ ${s.worst}`
           + (s.rain ? ` · ฝนสะสมสูงสุด ${s.rain}` : '') + (s.reports ? ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${s.reports} เรื่อง</b> ใน 24 ชม.` : ''),
     srcRoad: 'น้ำท่วมถนน: สำนักการระบายน้ำ กทม.', srcCanal: 'ระดับน้ำ: คลังข้อมูลน้ำแห่งชาติ (สสน.)',
     srcRain: 'ฝน: คลังข้อมูลน้ำแห่งชาติ (สสน.)', srcTraffy: 'แจ้งเหตุ: Traffy Fondue',
@@ -51,7 +54,10 @@ const T = {
     riskTitle: 'City flood risk index', waterReal: 'Max road flooding', waterSim: 'Simulated water level',
     floodedTitle: 'Districts with flooding', floodedSub: 'from BMA sensors', floodedSim: 'simulated: flooded districts', msl: 'm MSL', rainTitle: 'Max 24h rainfall', rainLbl: '24h rain',
     search: 'Search district, e.g. Chatuchak', simBanner: 'Simulation mode — district colours use hypothetical ground heights, not the real situation',
-    sideTitle: 'Flood situation now', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
+    sideTitle: 'Flood situation now', sideTitleAt: (t: string) => `Situation at ${t}`,
+    liveBtn: '● Live', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
+    histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
+    histRange: 'Up to 7 days back · rain only from when recording started', histReport: 'Flood report (history keeps no text/photos)', via: 'via HII', histSrc: 'history', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
     play: '▶ Simulate rain', pause: '⏸ Pause', layers: 'Layers',
     l0: 'Normal', l1: 'Watch', l2: 'High risk', l3: 'Severe',
     lyRoad: 'Road flood sensors (BMA)', lyCanal: 'Canal/river levels', lyRain: '24h rainfall', lyReports: 'Citizen flood reports (Traffy)',
@@ -125,6 +131,7 @@ let road: Result<RoadFlood> = { items: [], snapshot: false };
 let canals: Result<Canal> = { items: [], snapshot: false };
 let rain: Result<Rain> = { items: [], snapshot: false };
 let reports: Result<Report> = { items: [], snapshot: false };
+let historyAt: number | null = null; // null = live
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
 let simOn = false;
 let simCm = 60;
@@ -270,7 +277,7 @@ map.on('load', async () => {
   wireControls();
   applyLang();
   await refresh(firstFetch);
-  setInterval(() => refresh(), 5 * 60 * 1000);
+  setInterval(() => historyAt == null && refresh(), 5 * 60 * 1000);
 });
 
 // ---------------- data refresh ----------------
@@ -279,10 +286,30 @@ const fetchAll = () => Promise.all([fetchRoadFlood(), fetchCanals(), fetchRain()
 const firstFetch = fetchAll();
 
 async function refresh(pending = fetchAll()) {
+  if (historyAt != null) return showHistory(historyAt);
   $('refresh').setAttribute('disabled', '');
-  [road, canals, rain, reports] = await pending;
+  const data = await pending;
   $('refresh').removeAttribute('disabled');
+  if (historyAt != null) return; // user switched to history while this was loading
+  [road, canals, rain, reports] = data;
+  apply();
+}
 
+async function showHistory(at: number) {
+  historyAt = at;
+  $('refresh').setAttribute('disabled', '');
+  try {
+    ({ road, canals, rain, reports } = await loadHistory(at));
+    $('histError').hidden = true;
+  } catch (e) {
+    console.warn(e);
+    $('histError').hidden = false;
+  }
+  $('refresh').removeAttribute('disabled');
+  apply();
+}
+
+function apply() {
   for (const d of districts) Object.assign(d, { road: [], reports: 0, rainMax: null });
   for (const r of road.items) findDistrict(r.lng, r.lat)?.road.push(r);
   for (const r of reports.items) { const d = findDistrict(r.lng, r.lat); if (d) d.reports++; }
@@ -311,9 +338,13 @@ function stopSim() {
 }
 
 // ---------------- render ----------------
+const bkkLabel = (ms: number) => new Date(ms).toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
 function render() {
   const L = t();
   $('simBanner').hidden = !simOn;
+  $('sideTitle').textContent = historyAt == null ? L.sideTitle : L.sideTitleAt(bkkLabel(historyAt));
+  $('histLive').classList.toggle('live-on', historyAt == null);
   if (!loaded) {
     for (const id of ['riskValue', 'waterValue', 'floodCount', 'rainValue']) $(id).textContent = '--';
     $('summary').textContent = L.loading;
@@ -403,11 +434,14 @@ function render() {
 
   // Source status (live vs snapshot) — snapshot data must always be labelled.
   const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports]];
-  $('sources').innerHTML = srcs.map(([n, r]) => `<div>${esc(n)} — <span class="${r.snapshot ? 'snap' : 'live'}">● ${r.stale ? L.unavailable : r.snapshot ? L.snapshot : L.live}</span></div>`).join('')
+  const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? L.snapshot : r === road && roadVia ? `${L.live} (${L.via})` : L.live;
+  $('sources').innerHTML = srcs.map(([n, r]) => `<div>${esc(n)} — <span class="${r.snapshot || r.stale ? 'snap' : 'live'}">● ${status(r)}</span></div>`).join('')
     + `<div>${esc(L.srcSim)}</div>`;
   const names = (f: (r: Result<unknown>) => boolean) => srcs.filter(([, r]) => f(r)).map(([n]) => n).join(', ');
   const stale = names((r) => !!r.stale), snaps = names((r) => r.snapshot && !r.stale);
-  $('mockBanner').hidden = !stale && !snaps;
+  $('histBanner').hidden = historyAt == null;
+  if (historyAt != null) $('histBanner').textContent = L.histBanner(bkkLabel(historyAt)) + (road.stale ? ` · ${L.histNoRoad}` : '');
+  $('mockBanner').hidden = historyAt != null || (!stale && !snaps);
   $('mockBanner').textContent = [stale && `${L.staleBanner} ${stale}`, snaps && `${L.mockBanner} ${snaps}`].filter(Boolean).join(' · ');
 }
 
@@ -439,7 +473,7 @@ function showRain(r: Rain, fly = false) {
 }
 function showReport(r: Report, fly = false) {
   const L = t();
-  open([r.lng, r.lat], `<b>Traffy Fondue</b><div>${esc(r.text)}</div>` + row(L.updated, bkkTime(r.time)) + row(L.stateLbl, esc(r.state)) +
+  open([r.lng, r.lat], `<b>Traffy Fondue</b><div>${esc(r.text || L.histReport)}</div>` + row(L.updated, bkkTime(r.time)) + row(L.stateLbl, esc(r.state)) +
     `<div style="color:var(--text-muted);font-size:11px;margin-top:4px">${esc(r.address)}</div>` +
     (r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ''), fly);
 }
@@ -496,6 +530,33 @@ function wireControls() {
   });
 
   $('refresh').addEventListener('click', () => refresh());
+
+  // History picker: values are Bangkok local time regardless of the viewer's timezone.
+  const histAt = $<HTMLInputElement>('histAt');
+  const toInput = (ms: number) => new Date(ms + 7 * 3600_000).toISOString().slice(0, 16);
+  const setRange = () => {
+    const now = Date.now();
+    histAt.min = toInput(now - 7 * 86400_000);
+    histAt.max = toInput(now);
+    if (historyAt == null) histAt.value = toInput(now);
+  };
+  setRange();
+  histAt.title = t().histRange;
+  histAt.addEventListener('focus', setRange);
+  histAt.addEventListener('change', () => {
+    const at = bkkMs(histAt.value);
+    if (!Number.isFinite(at)) return;
+    popup.remove();
+    // Picking "now" (or later) means live.
+    if (at >= Date.now() - 10 * 60_000) { historyAt = null; refresh(); } else showHistory(Math.max(at, Date.now() - 7 * 86400_000));
+  });
+  $('histLive').addEventListener('click', () => {
+    historyAt = null;
+    $('histError').hidden = true;
+    setRange();
+    popup.remove();
+    refresh();
+  });
   $('sideToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
   $('sideBody').addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button.item');
