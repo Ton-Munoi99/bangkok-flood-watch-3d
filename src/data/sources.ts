@@ -39,9 +39,10 @@ async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]
   }
 }
 
-async function fetchOk(url: string) {
-  // Fail fast so one unreachable source (e.g. BMA from overseas hosts) doesn't stall the page; its snapshot is used instead.
-  const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+// Per-request timeout so one unreachable source doesn't stall the page; its fallback is used instead.
+// BMA gets a short one (it never answers from overseas hosts); Traffy can be slow under load.
+async function fetchOk(url: string, timeoutMs = 15_000) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r;
 }
@@ -95,12 +96,15 @@ export const fetchRoadFlood = () =>
   withFallback(
     async () => {
       try {
-        const rows = parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/')).text(), 'const floodData =') as BmaRaw[]);
+        const rows = parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/', 6000)).text(), 'const floodData =') as BmaRaw[]);
         roadVia = '';
         return rows;
       } catch (e) {
-        // BMA's site only answers Thai IPs; ThaiWater relays the same sensors but sometimes stalls,
-        // so only accept its readings if they are under an hour old.
+        // BMA's site only answers Thai IPs. Next best: readings pushed by our Thai-side collector
+        // (scripts/collect-bma.ts -> /api/ingest) if under 20 min old…
+        const pushed = await roadFromIngest(Date.now() - 20 * 60_000).catch(() => []);
+        if (pushed.length) { roadVia = ''; return pushed; }
+        // …then ThaiWater's relay of the same sensors, which sometimes stalls, so only if under an hour old.
         const fresh = await roadFromThaiWater(Date.now() - 3600_000);
         if (!fresh.length) throw e;
         roadVia = 'thaiwater';
@@ -110,6 +114,15 @@ export const fetchRoadFlood = () =>
     async () => parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]),
     (r) => r.updated,
   );
+
+async function roadFromIngest(since: number): Promise<RoadFlood[]> {
+  const p = (await getJson('/api/ingest')) as { fetchedAt: string; readings: { code: string; th: string; en: string; lng: number; lat: number; cm: number; updated: string }[] };
+  if (!p || Date.parse(p.fetchedAt) < since) return [];
+  return p.readings.map((r) => ({
+    id: r.code, nameTh: r.th, nameEn: r.en || r.th, lng: r.lng, lat: r.lat, cm: r.cm, maxCm: null, start: null,
+    updated: r.updated, level: roadLevel(r.cm), url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(r.code)}`,
+  }));
+}
 
 async function roadFromThaiWater(since: number): Promise<RoadFlood[]> {
   const rows = (await getJson(`${TW_BASE}/flood_road`)).data as {

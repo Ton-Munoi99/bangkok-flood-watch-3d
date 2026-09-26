@@ -18,6 +18,7 @@ const T = {
     riskTitle: 'ดัชนีความเสี่ยงน้ำท่วมรวม', waterReal: 'น้ำท่วมถนนสูงสุด', waterSim: 'ระดับน้ำจำลอง',
     floodedTitle: 'เขตที่มีน้ำท่วมขัง', floodedSub: 'จากเซนเซอร์ กทม.', floodedSim: 'จำลอง: เขตที่น้ำล้น', msl: 'ม.รทก.', rainTitle: 'ฝนสะสม 24 ชม. สูงสุด', rainLbl: 'ฝน 24 ชม.',
     search: 'ค้นหาเขต เช่น จตุจักร, บางเขน', simBanner: 'โหมดจำลอง — สีเขตคำนวณจากความสูงพื้นที่สมมติ ไม่ใช่สถานการณ์จริง',
+    rotL: 'หมุนซ้าย 45°', rotR: 'หมุนขวา 45°', spinBtn: 'หมุนรอบ 360° (กดอีกครั้งเพื่อหยุด)',
     sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', sideTitleAt: (t: string) => `สถานการณ์ ณ ${t}`,
     liveBtn: '● สด', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
     histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
@@ -30,7 +31,7 @@ const T = {
     alerts: '⚠ แจ้งเตือน: จุดท่วมหนัก', districts: 'เขตที่ได้รับผลกระทบ', canals: 'ระดับน้ำคลอง/แม่น้ำ (สสน.)',
     unavailable: 'ไม่พร้อมใช้งาน', needSensor: 'ต้องใช้ข้อมูลเซนเซอร์ กทม.',
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
-    summaryNoRoad: (rain: string, reports: number) => `ข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. ไม่พร้อมใช้งานตอนนี้ จึงยังบอกไม่ได้ว่าถนนไหนท่วม`
+    summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
     noAlerts: 'ไม่มีจุดท่วมหนักในขณะนี้', loading: 'กำลังโหลดข้อมูลล่าสุด…', more: (n: number) => `ดูอีก ${n} จุด`, noDistricts: 'ยังไม่มีเขตที่มีน้ำท่วมขัง',
     pts: 'จุดท่วม', reports: 'แจ้งเหตุ', since: 'ท่วมตั้งแต่', max: 'สูงสุด', updated: 'อัปเดต',
@@ -43,7 +44,7 @@ const T = {
     rainCls: (mm: number) => (mm > 90 ? 'หนักมาก' : mm > 35 ? 'หนัก' : mm > 10 ? 'ปานกลาง' : 'เล็กน้อย'),
     summary: (s: Summary) =>
       s.pts === 0
-        ? 'ขณะนี้เซนเซอร์ของ กทม. ยังไม่พบน้ำท่วมขังบนถนน'
+        ? 'เซนเซอร์ของ กทม. ไม่พบน้ำท่วมขังบนถนน'
         : `มีน้ำท่วมขังถนน <b>${s.pts} จุด</b> ใน <b>${s.districts} เขต</b> · ท่วมหนัก (≥20 ซม.) <b>${s.heavy} จุด</b> · หนักสุดที่ ${s.worst}`
           + (s.rain ? ` · ฝนสะสมสูงสุด ${s.rain}` : '') + (s.reports ? ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${s.reports} เรื่อง</b> ใน 24 ชม.` : ''),
     srcRoad: 'น้ำท่วมถนน: สำนักการระบายน้ำ กทม.', srcCanal: 'ระดับน้ำ: คลังข้อมูลน้ำแห่งชาติ (สสน.)',
@@ -54,6 +55,7 @@ const T = {
     riskTitle: 'City flood risk index', waterReal: 'Max road flooding', waterSim: 'Simulated water level',
     floodedTitle: 'Districts with flooding', floodedSub: 'from BMA sensors', floodedSim: 'simulated: flooded districts', msl: 'm MSL', rainTitle: 'Max 24h rainfall', rainLbl: '24h rain',
     search: 'Search district, e.g. Chatuchak', simBanner: 'Simulation mode — district colours use hypothetical ground heights, not the real situation',
+    rotL: 'Rotate left 45°', rotR: 'Rotate right 45°', spinBtn: 'Orbit 360° (press again to stop)',
     sideTitle: 'Flood situation now', sideTitleAt: (t: string) => `Situation at ${t}`,
     liveBtn: '● Live', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
     histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
@@ -66,7 +68,7 @@ const T = {
     alerts: '⚠ Alerts: severe flooding', districts: 'Affected districts', canals: 'Canal/river levels (HII)',
     unavailable: 'unavailable', needSensor: 'needs BMA sensor data',
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
-    summaryNoRoad: (rain: string, reports: number) => `BMA road-flood sensor data is unavailable right now, so flooded roads cannot be shown`
+    summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
     noAlerts: 'No severe flooding right now', loading: 'Loading latest data…', more: (n: number) => `Show ${n} more`, noDistricts: 'No district has road flooding',
     pts: 'points', reports: 'reports', since: 'Since', max: 'Max', updated: 'Updated',
@@ -79,7 +81,7 @@ const T = {
     rainCls: (mm: number) => (mm > 90 ? 'very heavy' : mm > 35 ? 'heavy' : mm > 10 ? 'moderate' : 'light'),
     summary: (s: Summary) =>
       s.pts === 0
-        ? 'BMA sensors currently report no road flooding.'
+        ? 'BMA sensors report no road flooding.'
         : `Road flooding at <b>${s.pts} points</b> in <b>${s.districts} districts</b> · severe (≥20 cm) <b>${s.heavy}</b> · worst at ${s.worst}`
           + (s.rain ? ` · max rainfall ${s.rain}` : '') + (s.reports ? ` · <b>${s.reports}</b> citizen flood reports on Traffy in 24h` : ''),
     srcRoad: 'Road flooding: BMA Drainage & Sewerage Dept.', srcCanal: 'Water level: Thai National Water Data (HII)',
@@ -147,7 +149,34 @@ const map = new maplibregl.Map({
   maxPitch: 80,
   attributionControl: { compact: true },
 });
-map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+
+// Rotate ±45° and a continuous 360° orbit. Any user drag/scroll/touch stops the orbit.
+let spinning = false;
+const spinStep = () => spinning && map.easeTo({ bearing: map.getBearing() + 90, duration: 6000, easing: (x) => x });
+const setSpin = (on: boolean) => {
+  spinning = on;
+  document.getElementById('spinBtn')?.classList.toggle('spin-on', on);
+  if (on) spinStep(); else map.stop();
+};
+map.on('moveend', () => spinning && spinStep());
+for (const ev of ['mousedown', 'touchstart', 'wheel'] as const) map.on(ev, () => spinning && setSpin(false));
+map.addControl({
+  onAdd() {
+    const el = document.createElement('div');
+    el.className = 'maplibregl-ctrl maplibregl-ctrl-group rotate-ctrl';
+    const btn = (id: string, label: string, onClick: () => void) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.id = id; b.textContent = label; b.addEventListener('click', onClick);
+      el.appendChild(b);
+    };
+    btn('rotL', '⟲', () => { setSpin(false); map.easeTo({ bearing: map.getBearing() - 45, duration: 600 }); });
+    btn('rotR', '⟳', () => { setSpin(false); map.easeTo({ bearing: map.getBearing() + 45, duration: 600 }); });
+    btn('spinBtn', '360°', () => setSpin(!spinning));
+    return el;
+  },
+  onRemove() {},
+}, 'bottom-right');
 const popup = new maplibregl.Popup({ maxWidth: '300px', focusAfterOpen: false });
 
 const fc = <T>(items: T[], coords: (x: T) => [number, number], props: (x: T) => Record<string, unknown>) => ({
@@ -586,6 +615,10 @@ function applyLang() {
   $('langEN').classList.toggle('active', lang === 'en');
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
+  for (const id of ['rotL', 'rotR', 'spinBtn'] as const) {
+    document.getElementById(id)?.setAttribute('aria-label', L[id]);
+    document.getElementById(id)?.setAttribute('title', L[id]);
+  }
   $('playBtn').textContent = timer ? L.pause : L.play;
   $('districtList').innerHTML = districts.map((d) => `<option value="${esc(dName(d))}">`).join('');
   popup.remove();

@@ -21,6 +21,20 @@ node scripts/check-sources.ts   # parser self-check
 - History stores no Traffy report text, photos or addresses — only id, position, time and state.
 - The collector runs outside Thailand, so it cannot read weather.bangkok.go.th directly (Thai IPs only). Road-flood history comes from ThaiWater's relay of the same BMA sensors, and has gaps whenever that relay stalls.
 
+## Live BMA road flooding (Thai-side collector)
+
+weather.bangkok.go.th only answers Thai IP addresses, so neither Netlify nor any overseas server can read it.
+`scripts/collect-bma.ts` runs on a machine in Thailand, reads the public home page once (with an honest
+User-Agent), and POSTs the readings to `/api/ingest` (`netlify/functions/ingest.mts`), which also records them into history.
+The page prefers these readings when they are under 20 min old, then ThaiWater's relay (under 1 h), then the labelled snapshot.
+
+```bash
+node scripts/collect-bma.ts --dry                   # test from a Thai IP
+INGEST_TOKEN=<secret> node scripts/collect-bma.ts   # push; the same secret must be set as INGEST_TOKEN in Netlify env vars
+```
+
+Schedule it every 10 min with launchd/cron on a Mac or PC in Thailand, or an AWS Lambda in `ap-southeast-7` (Bangkok).
+
 ## Data sources & attribution
 
 | Layer | Source | Notes |

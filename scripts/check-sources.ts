@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, situation, slot, slotMs } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, situation, slot, slotMs } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -37,3 +37,8 @@ assert.deepStrictEqual(db.days.get('2026-09-25')!.road, { '20:10': { 'FL.B': 12.
 const merged = mergeDay({ road: { '20:10': { 'FL.A': 1 } }, canal: {}, rain: {}, reports: {} }, db.days.get('2026-09-25')!);
 assert.deepStrictEqual(merged.road['20:10'], { 'FL.A': 1, 'FL.B': 12.5 });
 console.log('history ok');
+
+// BMA home-page table parser (escaped quotes, non-numeric rows ignored).
+const home = "x var datatableflood = [\n ['จตุจักร','Chatuchak','ซ.เสนานิคม','ซ.เสนานิคม','63.3','ขาเข้า'],\n ['บางนา','Bang Na','ถ.O\\'Neil  ช่วง 2','s','5.7','x'],\n ['a','b','bad','s','n/a','x']\n];";
+assert.deepStrictEqual(parseBmaHome(home), [{ name: 'ซ.เสนานิคม', cm: 63.3 }, { name: "ถ.O'Neil ช่วง 2", cm: 5.7 }]);
+console.log('bma home ok');

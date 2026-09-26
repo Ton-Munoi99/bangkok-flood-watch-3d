@@ -116,3 +116,15 @@ export function addReports(b: DayBuilder, rows: { ticket_id: string; description
     b.report(x.ticket_id, Number(x.coords[0]), Number(x.coords[1]), iso, x.state);
   }
 }
+
+/** Rows of `var datatableflood = [['เขต','District','flood_name','short','cm',...], ...]` on weather.bangkok.go.th's
+ *  home page — the one BMA page that accepts non-browser clients. Lists only stations currently flooded. */
+export function parseBmaHome(html: string): { name: string; cm: number }[] {
+  const start = html.indexOf('var datatableflood');
+  if (start < 0) throw new Error('datatableflood not found');
+  const block = html.slice(start, html.indexOf('];', start));
+  const rows = block.match(/\[\s*'(?:[^'\\]|\\.)*'(?:\s*,\s*'(?:[^'\\]|\\.)*')*\s*\]/g) ?? [];
+  return rows.map((row) => [...row.matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1].replace(/\\'/g, "'")))
+    .filter((f) => f.length >= 5 && Number.isFinite(Number(f[4])))
+    .map((f) => ({ name: f[2].replace(/\s+/g, ' ').trim(), cm: Number(f[4]) }));
+}
