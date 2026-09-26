@@ -48,8 +48,9 @@ const T = {
     district: 'เขต', districtLbl: 'เขต', area: 'พื้นที่', status: 'สถานะ', maxRoad: 'น้ำท่วมถนนสูงสุด', rainMax: 'ฝน 24 ชม. สูงสุด',
     elevSim: 'ความสูงพื้นที่ (จำลอง)', marginSim: 'ระยะก่อนน้ำล้น (จำลอง)', waterNow: 'ระดับน้ำ', bank: 'ระดับตลิ่ง',
     toBank: 'ระยะก่อนล้นตลิ่ง', overBank: 'ล้นตลิ่ง', agency: 'หน่วยงาน', detail: 'ดูรายละเอียดที่ กทม.',
-    noSensor: 'ไม่มีเซนเซอร์ในเขต', stateLbl: 'สถานะเรื่อง', live: 'สด', snapshot: 'ข้อมูลสำรอง',
-    mockBanner: 'บางแหล่งเชื่อมต่อไม่ได้ — กำลังแสดง "ข้อมูลสำรอง" (snapshot 26 ก.ย. 2569 ~06:10) ไม่ใช่ข้อมูลล่าสุด:',
+    noSensor: 'ไม่มีข้อมูลในเขตนี้ตอนนี้', stateLbl: 'สถานะเรื่อง', live: 'สด', snapshot: 'ข้อมูลสำรอง',
+    mockBanner: 'บางแหล่งเชื่อมต่อไม่ได้ — กำลังแสดงข้อมูลล่าสุดที่มี ไม่ใช่ข้อมูลปัจจุบัน:', asOf: (t: string, ago: string) => `ข้อมูลเมื่อ ${t} (${ago}ที่แล้ว)`,
+    agoFmt: (h: number, m: number) => (h ? `${h} ชม. ` : '') + `${m} นาที`, l4: 'ไม่มีข้อมูล',
     situation: ['', 'น้อยวิกฤต', 'น้อย', 'ปกติ', 'มาก', 'ล้นตลิ่ง'],
     rainCls: (mm: number) => (mm > 90 ? 'หนักมาก' : mm > 35 ? 'หนัก' : mm > 10 ? 'ปานกลาง' : 'เล็กน้อย'),
     summary: (s: Summary) =>
@@ -95,8 +96,9 @@ const T = {
     district: '', districtLbl: 'District', area: 'Area', status: 'Status', maxRoad: 'Max road flooding', rainMax: 'Max 24h rain',
     elevSim: 'Ground height (simulated)', marginSim: 'Margin before flooding (simulated)', waterNow: 'Water level', bank: 'Bank level',
     toBank: 'Margin to bank', overBank: 'Over bank', agency: 'Agency', detail: 'Details at BMA',
-    noSensor: 'No sensors in district', stateLbl: 'Ticket status', live: 'live', snapshot: 'snapshot',
-    mockBanner: 'Some sources are unreachable — showing SNAPSHOT data (26 Sep 2026 ~06:10), not live:',
+    noSensor: 'No data for this district right now', stateLbl: 'Ticket status', live: 'live', snapshot: 'snapshot',
+    mockBanner: 'Some sources are unreachable — showing the latest data available, not current:', asOf: (t: string, ago: string) => `data as of ${t} (${ago} ago)`,
+    agoFmt: (h: number, m: number) => (h ? `${h} h ` : '') + `${m} min`, l4: 'No data',
     situation: ['', 'Critically low', 'Low', 'Normal', 'High', 'Overflowing'],
     rainCls: (mm: number) => (mm > 90 ? 'very heavy' : mm > 35 ? 'heavy' : mm > 10 ? 'moderate' : 'light'),
     summary: (s: Summary) =>
@@ -573,12 +575,18 @@ function render() {
     [L.srcTraffy, 'https://share.traffy.in.th/teamchadchart'], [L.srcEvents, 'https://live.iticfoundation.org/'],
   ]);
   const link = (n: string) => `<a href="${srcUrl.get(n)}" target="_blank" rel="noopener">${esc(n)}</a>`;
-  const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? L.snapshot : r === road && roadVia ? `${L.live} (${L.via})` : L.live;
+  const asOf = (r: Result<unknown>) => {
+    if (!r.asOf) return L.snapshot;
+    const mins = Math.max(0, Math.round((Date.now() - Date.parse(r.asOf)) / 60_000));
+    return L.asOf(bkkTime(r.asOf), L.agoFmt(Math.floor(mins / 60), mins % 60));
+  };
+  const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? asOf(r) : r === road && roadVia ? `${L.live} (${L.via})` : L.live;
   // Data-layer credits live here (with links) rather than in the map's credit line, which stays basemap-only and short.
   $('sources').innerHTML = `<b>${L.srcTitle}</b>` + srcs.map(([n, r]) => `<div>${link(n)} — <span class="${r.snapshot || r.stale ? 'snap' : 'live'}">● ${status(r)}</span></div>`).join('')
     + `<div>${L.srcCams}</div><div>${L.srcDistricts}</div><div>${esc(L.srcSim)}</div>`;
   const names = (f: (r: Result<unknown>) => boolean) => srcs.filter(([, r]) => f(r)).map(([n]) => n).join(', ');
-  const stale = names((r) => !!r.stale), snaps = names((r) => r.snapshot && !r.stale);
+  const stale = names((r) => !!r.stale);
+  const snaps = srcs.filter(([, r]) => r.snapshot && !r.stale).map(([n, r]) => `${n} — ${asOf(r)}`).join(', ');
   $('histBanner').hidden = historyAt == null;
   if (historyAt != null) $('histBanner').textContent = L.histBanner(bkkLabel(historyAt)) + (road.stale ? ` · ${L.histNoRoad}` : '');
   $('mockBanner').hidden = historyAt != null || (!stale && !snaps);

@@ -23,7 +23,8 @@ export interface Canal {
 export interface Rain { id: string; nameTh: string; nameEn: string; lng: number; lat: number; mm: number; updated: string }
 export interface Report { id: string; lng: number; lat: number; text: string; address: string; photo: string; time: string; state: string }
 
-export interface Result<T> { items: T[]; snapshot: boolean; stale?: boolean; error?: string }
+// snapshot = not current data (labelled in the UI with asOf); stale = too old to show at all (items empty).
+export interface Result<T> { items: T[]; snapshot: boolean; stale?: boolean; error?: string; asOf?: string }
 
 const FORCE_MOCK = import.meta.env?.VITE_DATA_MODE === 'mock';
 export const STALE_MS = 6 * 3600 * 1000;
@@ -35,16 +36,19 @@ async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]
     return { items: await live(), snapshot: false };
   } catch (e) {
     console.warn('live source failed, using snapshot', e);
-    const items = await mock();
-    const newest = Math.max(...items.map((x) => bkkMs(timeOf(x))));
-    // Old readings shown during a live flood would mislead, so a stale snapshot is dropped entirely.
-    if (Date.now() - newest > STALE_MS) return { items: [], snapshot: true, stale: true, error: String(e) };
-    return { items, snapshot: true, error: String(e) };
+    return { ...snapshotResult(await mock(), timeOf), error: String(e) };
   }
 }
 
 // Per-request timeout so one unreachable source doesn't stall the page; its fallback is used instead.
 // BMA gets a short one (it never answers from overseas hosts); Traffy can be slow under load.
+/** Old readings shown during a live flood would mislead, so a snapshot older than STALE_MS is dropped entirely. */
+function snapshotResult<T>(items: T[], timeOf: (x: T) => string): Result<T> {
+  const newest = Math.max(...items.map((x) => bkkMs(timeOf(x))));
+  if (!Number.isFinite(newest) || Date.now() - newest > STALE_MS) return { items: [], snapshot: true, stale: true };
+  return { items, snapshot: true, asOf: new Date(newest).toISOString() };
+}
+
 async function fetchOk(url: string, timeoutMs = 15_000) {
   const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
@@ -96,38 +100,39 @@ const parseBma = (raw: BmaRaw[]): RoadFlood[] =>
 /** Where the live road data came from on the last fetch ('' = BMA directly). */
 export let roadVia = '';
 
-export const fetchRoadFlood = () =>
-  withFallback(
-    async () => {
-      try {
-        // Direct read only works from a Thai IP, i.e. the local dev server; deployed, it would just time out.
-        if (!import.meta.env?.DEV) throw new Error('direct BMA read is dev-only');
-        const rows = parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/', 6000)).text(), 'const floodData =') as BmaRaw[]);
-        roadVia = '';
-        return rows;
-      } catch (e) {
-        // BMA's site only answers Thai IPs. Next best: readings pushed by our Thai-side collector
-        // (scripts/collect-bma.ts -> /api/ingest, runs every 30 min) if under 45 min old…
-        const pushed = await roadFromIngest(Date.now() - 45 * 60_000).catch(() => []);
-        if (pushed.length) { roadVia = ''; return pushed; }
-        // …then ThaiWater's relay of the same sensors, which sometimes stalls, so only if under an hour old.
-        const fresh = await roadFromThaiWater(Date.now() - 3600_000);
-        if (!fresh.length) throw e;
-        roadVia = 'thaiwater';
-        return fresh;
-      }
-    },
-    async () => parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]),
-    (r) => r.updated,
-  );
+export async function fetchRoadFlood(): Promise<Result<RoadFlood>> {
+  const bundled = async () => snapshotResult(parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]), (r) => r.updated);
+  if (FORCE_MOCK) return bundled();
+  roadVia = '';
+  // 1. Direct read only works from a Thai IP, i.e. the local dev server; deployed, it would just time out.
+  if (import.meta.env?.DEV) {
+    try {
+      return { items: parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/', 6000)).text(), 'const floodData =') as BmaRaw[]), snapshot: false };
+    } catch (e) { console.warn('direct BMA read failed', e); }
+  }
+  // 2. Readings pushed by our Thai-side collector (scripts/collect-bma.ts -> /api/ingest, every 30 min).
+  const pushed = await roadFromIngest().catch(() => null);
+  const age = pushed ? Date.now() - Date.parse(pushed.fetchedAt) : Infinity;
+  if (pushed && age < 45 * 60_000) return { items: pushed.items, snapshot: false };
+  // 3. ThaiWater's relay of the same sensors (it sometimes stalls, so only if under an hour old).
+  const relayed = await roadFromThaiWater(Date.now() - 3600_000).catch(() => []);
+  if (relayed.length) { roadVia = 'thaiwater'; return { items: relayed, snapshot: false }; }
+  // 4. The collector's last push, if the Mac slept or BMA blocked a few runs — shown with its time.
+  if (pushed && age < STALE_MS) return { items: pushed.items, snapshot: true, asOf: pushed.fetchedAt };
+  // 5. The bundled snapshot (same 6 h rule).
+  return bundled();
+}
 
-async function roadFromIngest(since: number): Promise<RoadFlood[]> {
+async function roadFromIngest(): Promise<{ fetchedAt: string; items: RoadFlood[] } | null> {
   const p = (await getJson('/api/ingest')) as { fetchedAt: string; readings: { code: string; th: string; en: string; lng: number; lat: number; cm: number; updated: string }[] };
-  if (!p || Date.parse(p.fetchedAt) < since) return [];
-  return p.readings.map((r) => ({
-    id: r.code, nameTh: r.th, nameEn: r.en || r.th, lng: r.lng, lat: r.lat, cm: r.cm, maxCm: null, start: null,
-    updated: r.updated, level: roadLevel(r.cm), url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(r.code)}`,
-  }));
+  if (!p?.readings?.length) return null;
+  return {
+    fetchedAt: p.fetchedAt,
+    items: p.readings.map((r) => ({
+      id: r.code, nameTh: r.th, nameEn: r.en || r.th, lng: r.lng, lat: r.lat, cm: r.cm, maxCm: null, start: null,
+      updated: r.updated, level: roadLevel(r.cm), url: `https://floodbangkok.bangkok.go.th/device-info?sensor_profile_id=${encodeURIComponent(r.code)}`,
+    })),
+  };
 }
 
 async function roadFromThaiWater(since: number): Promise<RoadFlood[]> {
