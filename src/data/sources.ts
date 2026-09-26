@@ -215,11 +215,35 @@ const parseTraffy = (raw: { results: TraffyRaw[] }, since: number): Report[] =>
 
 export const fetchReports = () =>
   withFallback(
-    // Newest first; 500 covers several hours during heavy rain.
-    async () => parseTraffy(await getJson('https://publicapi.traffy.in.th/share/teamchadchart/search?limit=500'), Date.now() - DAY),
+    async () => {
+      reportsVia = '';
+      try {
+        // Newest first; 500 covers several hours during heavy rain. Traffy often takes 15 s+ under load.
+        return parseTraffy(await (await fetchOk('https://publicapi.traffy.in.th/share/teamchadchart/search?limit=500', 12_000)).json(), Date.now() - DAY);
+      } catch (e) {
+        // Our collector stores flood reports every 10 min (position/time/state only), so use its last 24 h instead.
+        const stored = await reportsFromCollector(Date.now());
+        if (!stored.length) throw e;
+        reportsVia = 'collector';
+        return stored;
+      }
+    },
     async () => parseTraffy((await import('./mock/traffy.json')).default as never, 0),
     (r) => r.time,
   );
+
+/** Where the last report list came from ('' = Traffy directly). */
+export let reportsVia = '';
+
+async function reportsFromCollector(at: number): Promise<Report[]> {
+  const days = [...new Set([slot(at).day, slot(at - DAY).day])];
+  const files = await Promise.all(days.map((d) => getJson(`/api/history/${d}`).catch(() => null) as Promise<DayFile | null>));
+  const out = new Map<string, Report>();
+  for (const f of files) for (const [id, [lng, lat, time, state]] of Object.entries(f?.reports ?? {})) {
+    if (Date.parse(time) <= at && Date.parse(time) > at - DAY) out.set(id, { id, lng, lat, time, state, text: '', address: '', photo: '' });
+  }
+  return [...out.values()];
+}
 
 // ---------- History (recorded every 10 min by netlify/functions/collect.mts) ----------
 export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report>; events: Result<FloodEvent>; traffic: number | null }

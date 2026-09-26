@@ -6,7 +6,7 @@ import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs, fetchCameras, longdoCameraUrl,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl,
   fetchEvents, fetchTrafficIndex, fetchUpstream, type Dam, type FloodEvent, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
@@ -23,7 +23,7 @@ const T = {
     sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', sideTitleAt: (t: string) => `สถานการณ์ ณ ${t}`,
     liveBtn: '● สด', traffic: '🚗 Google Maps', trafficTip: 'เปิด Google Maps พร้อมชั้นจราจรแบบสด ตรงตำแหน่งที่แผนที่แสดงอยู่', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
     histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
-    histRange: 'ย้อนหลังได้ 7 วัน · ข้อมูลฝนมีเฉพาะช่วงที่ระบบเริ่มเก็บ', histReport: 'แจ้งน้ำท่วม (ข้อมูลย้อนหลังไม่เก็บข้อความ/รูปภาพ)', via: 'ผ่าน สสน.', histSrc: 'ย้อนหลัง', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
+    histRange: 'ย้อนหลังได้ 7 วัน · ข้อมูลฝนมีเฉพาะช่วงที่ระบบเริ่มเก็บ', histReport: 'แจ้งน้ำท่วม (ข้อมูลย้อนหลังไม่เก็บข้อความ/รูปภาพ)', via: 'ผ่าน สสน.', viaCollector: 'ผ่านตัวเก็บข้อมูล ≤10 นาที', nearestSensor: (n: string, km: string, cm: number) => `ไม่มีเซนเซอร์ กทม. ในเขตนี้ · ใกล้สุด: ${n} (${km} กม.) ${cm} ซม.`, histSrc: 'ย้อนหลัง', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
     play: '▶ จำลองฝนตก', pause: '⏸ หยุด', layers: '🗂 ชั้นข้อมูล', layersHint: 'เลือกสิ่งที่แสดงบนแผนที่',
     l0: 'ปกติ', l1: 'เฝ้าระวัง', l2: 'เสี่ยงสูง', l3: 'ท่วมหนัก',
     lyRoad: 'เซนเซอร์น้ำท่วมถนน (กทม.)', lyCanal: 'ระดับน้ำคลอง/แม่น้ำ', lyRain: 'ฝน 24 ชม.', lyReports: 'ประชาชนแจ้งน้ำท่วม (Traffy)',
@@ -86,7 +86,7 @@ const T = {
     sideTitle: 'Flood situation now', sideTitleAt: (t: string) => `Situation at ${t}`,
     liveBtn: '● Live', traffic: '🚗 Google Maps', trafficTip: 'Open Google Maps with the live traffic layer at the current map view', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
     histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
-    histRange: 'Up to 7 days back · rain only from when recording started', histReport: 'Flood report (history keeps no text/photos)', via: 'via HII', histSrc: 'history', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
+    histRange: 'Up to 7 days back · rain only from when recording started', histReport: 'Flood report (history keeps no text/photos)', via: 'via HII', viaCollector: 'via our collector, ≤10 min old', nearestSensor: (n: string, km: string, cm: number) => `No BMA sensor in this district · nearest: ${n} (${km} km) ${cm} cm`, histSrc: 'history', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
     play: '▶ Simulate rain', pause: '⏸ Pause', layers: '🗂 Layers', layersHint: 'choose what the map shows',
     l0: 'Normal', l1: 'Watch', l2: 'High risk', l3: 'Severe',
     lyRoad: 'Road flood sensors (BMA)', lyCanal: 'Canal/river levels', lyRain: '24h rainfall', lyReports: 'Citizen flood reports (Traffy)',
@@ -643,7 +643,7 @@ function render() {
     const mins = Math.max(0, Math.round((Date.now() - Date.parse(r.asOf)) / 60_000));
     return L.asOf(bkkTime(r.asOf), L.agoFmt(Math.floor(mins / 60), mins % 60));
   };
-  const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? asOf(r) : r === road && roadVia ? `${L.live} (${L.via})` : L.live;
+  const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? asOf(r) : r === road && roadVia ? `${L.live} (${L.via})` : r === reports && reportsVia ? `${L.live} (${L.viaCollector})` : L.live;
   // Data-layer credits live here (with links) rather than in the map's credit line, which stays basemap-only and short.
   $('sources').innerHTML = `<b>${L.srcTitle}</b>` + srcs.map(([n, r]) => `<div>${link(n)} — <span class="${r.snapshot || r.stale ? 'snap' : 'live'}">● ${status(r)}</span></div>`).join('')
     + `<div>${L.srcCams}</div><div>${L.srcDistricts}</div><div>${esc(L.srcSim)}</div>`;
@@ -739,6 +739,14 @@ function showReport(r: Report, fly = false) {
     (r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '') +
     `<div class="r"><a href="https://bangkok.traffy.in.th/detail?ticketID=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${L.traffyOpen} ↗</a></div>` + nearCameraRow(r), fly);
 }
+/** For districts without their own BMA sensor: the closest one, so "no data" still gives a hint. */
+function nearestSensorRow(d: District) {
+  if (d.road.length || !road.items.length) return '';
+  const c = { lng: (d.bbox[0] + d.bbox[2]) / 2, lat: (d.bbox[1] + d.bbox[3]) / 2 };
+  let best = road.items[0], bestM = Infinity;
+  for (const r of road.items) { const m = metres(c, r); if (m < bestM) { best = r; bestM = m; } }
+  return `<div class="empty" style="margin-top:4px">${esc(t().nearestSensor(name(best), (bestM / 1000).toFixed(1), best.cm))}</div>`;
+}
 function showDistrict(d: District, at?: maplibregl.LngLat) {
   const L = t();
   const lvl = simOn ? d.simLevel : d.level;
@@ -746,7 +754,7 @@ function showDistrict(d: District, at?: maplibregl.LngLat) {
   if (!at) map.fitBounds([[d.bbox[0], d.bbox[1]], [d.bbox[2], d.bbox[3]]], { padding: 60, duration: 1200 });
   const margin = d.elev - simCm;
   open(at ?? [(d.bbox[0] + d.bbox[2]) / 2, (d.bbox[1] + d.bbox[3]) / 2], `<b>${L.district}${esc(dName(d))}</b>` +
-    row(L.status, status) + row(L.area, `${d.area.toFixed(1)} km²`) +
+    row(L.status, status) + row(L.area, `${d.area.toFixed(1)} km²`) + nearestSensorRow(d) +
     row(L.maxRoad, `${maxCm(d)} cm`) + row(L.pts, String(d.road.filter((r) => r.cm > 0).length)) + row(`${L.reports} (24h)`, String(d.reports)) +
     (d.rainMax ? row(L.rainMax, `${d.rainMax.mm} mm`) : '') +
     row(L.elevSim, `${d.elev} cm`) + (simOn ? row(L.marginSim, `${margin > 0 ? '+' : ''}${Math.round(margin)} cm`) : ''));
