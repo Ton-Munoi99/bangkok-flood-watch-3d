@@ -107,3 +107,5 @@ input[type=checkbox] { accent-color: var(--accent); }
 .live-on { background: rgba(62, 213, 152, .18); border-color: var(--l0); color: var(--l0); }
 .banner.hist { border-color: var(--accent); color: var(--accent); }
 .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; flex: none; box-sizing: border-box; }
+#trafficBtn { text-decoration: none; color: var(--text); white-space: nowrap; }
+@media (max-width: 820px) { .timebar { flex-wrap: wrap; } }

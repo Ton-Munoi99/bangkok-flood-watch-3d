@@ -20,7 +20,7 @@ const T = {
     search: 'ค้นหาเขต เช่น จตุจักร, บางเขน', simBanner: 'โหมดจำลอง — สีเขตคำนวณจากความสูงพื้นที่สมมติ ไม่ใช่สถานการณ์จริง',
     rotL: 'หมุนซ้าย 45°', rotR: 'หมุนขวา 45°', spinBtn: 'หมุนรอบ 360° (กดอีกครั้งเพื่อหยุด)',
     sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', sideTitleAt: (t: string) => `สถานการณ์ ณ ${t}`,
-    liveBtn: '● สด', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
+    liveBtn: '● สด', traffic: '🚗 ดูสภาพจราจร (Google Maps)', trafficTip: 'เปิด Google Maps พร้อมชั้นจราจรแบบสด ตรงตำแหน่งที่แผนที่แสดงอยู่', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
     histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
     histRange: 'ย้อนหลังได้ 7 วัน · ข้อมูลฝนมีเฉพาะช่วงที่ระบบเริ่มเก็บ', histReport: 'แจ้งน้ำท่วม (ข้อมูลย้อนหลังไม่เก็บข้อความ/รูปภาพ)', via: 'ผ่าน สสน.', histSrc: 'ย้อนหลัง', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
     play: '▶ จำลองฝนตก', pause: '⏸ หยุด', layers: 'ชั้นข้อมูล',
@@ -58,7 +58,7 @@ const T = {
     search: 'Search district, e.g. Chatuchak', simBanner: 'Simulation mode — district colours use hypothetical ground heights, not the real situation',
     rotL: 'Rotate left 45°', rotR: 'Rotate right 45°', spinBtn: 'Orbit 360° (press again to stop)',
     sideTitle: 'Flood situation now', sideTitleAt: (t: string) => `Situation at ${t}`,
-    liveBtn: '● Live', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
+    liveBtn: '● Live', traffic: '🚗 Live traffic (Google Maps)', trafficTip: 'Open Google Maps with the live traffic layer at the current map view', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
     histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
     histRange: 'Up to 7 days back · rain only from when recording started', histReport: 'Flood report (history keeps no text/photos)', via: 'via HII', histSrc: 'history', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
     play: '▶ Simulate rain', pause: '⏸ Pause', layers: 'Layers',
@@ -590,6 +590,14 @@ function wireControls() {
 
   $('refresh').addEventListener('click', () => refresh());
 
+  // Link out to Google Maps' live traffic layer at the current view (a link only — no Google data is copied here).
+  // MapLibre uses 512 px tiles, Google 256 px, hence +1 zoom.
+  $('trafficBtn').addEventListener('click', () => {
+    const c = map.getCenter();
+    const z = Math.min(21, Math.max(3, Math.round(map.getZoom() + 1)));
+    ($('trafficBtn') as HTMLAnchorElement).href = `https://www.google.com/maps/@${c.lat.toFixed(5)},${c.lng.toFixed(5)},${z}z/data=!5m1!1e1`;
+  });
+
   // History picker: values are Bangkok local time regardless of the viewer's timezone.
   const histAt = $<HTMLInputElement>('histAt');
   const toInput = (ms: number) => new Date(ms + 7 * 3600_000).toISOString().slice(0, 16);
@@ -645,6 +653,7 @@ function applyLang() {
   $('langEN').classList.toggle('active', lang === 'en');
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
+  $('trafficBtn').title = L.trafficTip;
   for (const id of ['rotL', 'rotR', 'spinBtn'] as const) {
     document.getElementById(id)?.setAttribute('aria-label', L[id]);
     document.getElementById(id)?.setAttribute('title', L[id]);
