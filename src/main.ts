@@ -310,18 +310,28 @@ map.on('load', async () => {
 });
 
 // ---------------- data refresh ----------------
-const fetchAll = () => Promise.all([fetchRoadFlood(), fetchCanals(), fetchRain(), fetchReports()]);
+const fetchAll = () => [fetchRoadFlood(), fetchCanals(), fetchRain(), fetchReports()] as const;
 // Start downloading data immediately — no need to wait for map tiles.
 const firstFetch = fetchAll();
 
 async function refresh(pending = fetchAll()) {
   if (historyAt != null) return showHistory(historyAt);
   $('refresh').setAttribute('disabled', '');
-  const data = await pending;
+  // Show each source as soon as it arrives instead of waiting for the slowest one.
+  // Road decides the "all clear" wording, so the page stays in its loading state until road is in.
+  const [pRoad, pCanal, pRain, pReports] = pending;
+  const use = <T>(p: Promise<T>, set: (v: T) => void) => p.then((v) => {
+    if (historyAt != null) return; // user switched to history while this was loading
+    set(v);
+    apply();
+  });
+  await Promise.all([
+    use(pRoad, (v) => { road = v; loaded = true; }),
+    use(pCanal, (v) => (canals = v)),
+    use(pRain, (v) => (rain = v)),
+    use(pReports, (v) => (reports = v)),
+  ]);
   $('refresh').removeAttribute('disabled');
-  if (historyAt != null) return; // user switched to history while this was loading
-  [road, canals, rain, reports] = data;
-  apply();
 }
 
 async function showHistory(at: number) {
@@ -329,6 +339,7 @@ async function showHistory(at: number) {
   $('refresh').setAttribute('disabled', '');
   try {
     ({ road, canals, rain, reports } = await loadHistory(at));
+    loaded = true;
     $('histError').hidden = true;
   } catch (e) {
     console.warn(e);
@@ -353,7 +364,6 @@ function apply() {
   setData('canal', fc(canals.items, (c) => [c.lng, c.lat], (c) => ({ situation: c.situation })));
   setData('rain', fc(rain.items, (r) => [r.lng, r.lat], (r) => ({ mm: r.mm })));
   setData('reports', fc(reports.items, (r) => [r.lng, r.lat], () => ({})));
-  loaded = true;
   render();
 }
 

@@ -16,8 +16,8 @@ export default async (req: Request) => {
 
   if (req.method === 'GET') {
     const latest = await store.get('bma/latest');
-    return new Response(latest ?? 'null', {
-      status: latest ? 200 : 404,
+    if (!latest) return json(null, 404, { 'cache-control': 'no-store' }); // don't let the CDN pin a "not yet"
+    return new Response(latest, {
       headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=60', 'netlify-cdn-cache-control': 'public, durable, s-maxage=120' },
     });
   }

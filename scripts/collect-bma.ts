@@ -1,5 +1,5 @@
 // Pushes BMA road-flood readings to the site. Must run on a Thai IP (weather.bangkok.go.th blocks others),
-// e.g. every 10 min from a Mac (launchd) or an AWS Lambda in ap-southeast-7.
+// e.g. every 30 min from a Mac (launchd) or an AWS Lambda in ap-southeast-7.
 //   INGEST_TOKEN=... node scripts/collect-bma.ts          # push to https://bangkokflood.netlify.app
 //   node scripts/collect-bma.ts --dry                      # just print what would be sent
 // Identifies itself honestly; reads only the public home page, once per run.

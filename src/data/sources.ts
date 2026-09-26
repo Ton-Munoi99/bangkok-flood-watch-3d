@@ -96,13 +96,15 @@ export const fetchRoadFlood = () =>
   withFallback(
     async () => {
       try {
+        // Direct read only works from a Thai IP, i.e. the local dev server; deployed, it would just time out.
+        if (!import.meta.env?.DEV) throw new Error('direct BMA read is dev-only');
         const rows = parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/', 6000)).text(), 'const floodData =') as BmaRaw[]);
         roadVia = '';
         return rows;
       } catch (e) {
         // BMA's site only answers Thai IPs. Next best: readings pushed by our Thai-side collector
-        // (scripts/collect-bma.ts -> /api/ingest) if under 20 min old…
-        const pushed = await roadFromIngest(Date.now() - 20 * 60_000).catch(() => []);
+        // (scripts/collect-bma.ts -> /api/ingest, runs every 30 min) if under 45 min old…
+        const pushed = await roadFromIngest(Date.now() - 45 * 60_000).catch(() => []);
         if (pushed.length) { roadVia = ''; return pushed; }
         // …then ThaiWater's relay of the same sensors, which sometimes stalls, so only if under an hour old.
         const fresh = await roadFromThaiWater(Date.now() - 3600_000);

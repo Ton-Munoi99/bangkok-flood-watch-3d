@@ -1,10 +1,3 @@
 [build]
   command = "npm run build"
   publish = "dist"
-
-# Same-origin proxy for BMA's flood page (no CORS). Mirrors server.proxy in vite.config.ts.
-[[redirects]]
-  from = "/proxy/bma/*"
-  to = "https://weather.bangkok.go.th/:splat"
-  status = 200
-  force = true

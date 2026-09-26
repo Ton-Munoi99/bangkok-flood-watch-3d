@@ -26,20 +26,20 @@ node scripts/check-sources.ts   # parser self-check
 weather.bangkok.go.th only answers Thai IP addresses, so neither Netlify nor any overseas server can read it.
 `scripts/collect-bma.ts` runs on a machine in Thailand, reads the public home page once (with an honest
 User-Agent), and POSTs the readings to `/api/ingest` (`netlify/functions/ingest.mts`), which also records them into history.
-The page prefers these readings when they are under 20 min old, then ThaiWater's relay (under 1 h), then the labelled snapshot.
+The page prefers these readings when they are under 45 min old, then ThaiWater's relay (under 1 h), then the labelled snapshot.
 
 ```bash
 node scripts/collect-bma.ts --dry                   # test from a Thai IP
 INGEST_TOKEN=<secret> node scripts/collect-bma.ts   # push; the same secret must be set as INGEST_TOKEN in Netlify env vars
 ```
 
-Schedule it every 10 min with launchd/cron on a Mac or PC in Thailand, or an AWS Lambda in `ap-southeast-7` (Bangkok).
+Schedule it (this project uses every 30 min) with launchd/cron on a Mac or PC in Thailand, or an AWS Lambda in `ap-southeast-7` (Bangkok).
 
 ## Data sources & attribution
 
 | Layer | Source | Notes |
 |---|---|---|
-| Road flooding (cm) | สำนักการระบายน้ำ กรุงเทพมหานคร — [weather.bangkok.go.th/flood](https://weather.bangkok.go.th/flood/) | No official API; the page's embedded data is read through a same-origin proxy (`/proxy/bma`, see `vite.config.ts` / `netlify.toml`). The site blocks non-browser clients, so requests are relayed from visitors' browsers only. Ask the department for an official feed before heavy public use. |
+| Road flooding (cm) | สำนักการระบายน้ำ กรุงเทพมหานคร — [weather.bangkok.go.th](https://weather.bangkok.go.th/flood/) | No official API, and the site only answers Thai IPs. Deployed, readings come from the Thai-side collector (below), then ThaiWater's relay of the same sensors. The dev server reads `/flood/` directly through a Vite proxy. Ask the department for an official feed before heavy public use. |
 | Canal/river level, 24h rain | คลังข้อมูลน้ำแห่งชาติ (สสน./HII) — [thaiwater.net](https://www.thaiwater.net) public API | |
 | Citizen flood reports | [Traffy Fondue](https://share.traffy.in.th/teamchadchart) public share API (NECTEC × BMA) | Filtered to reports mentioning "ท่วม" in the last 24h. |
 | District boundaries | [OpenGISData-Thailand](https://github.com/chingchai/OpenGISData-Thailand) (chingchai) | |
