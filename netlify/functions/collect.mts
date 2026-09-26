@@ -4,7 +4,7 @@
 import { getStore } from '@netlify/blobs';
 import {
   DayBuilder, HISTORY_DAYS, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
-  emptyDay, emptyMeta, mergeDay, slot, type DayFile, type Meta,
+  emptyDay, emptyMeta, mergeDay, parseDams, slot, type DayFile, type Meta, type Upstream,
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
@@ -38,6 +38,15 @@ export default async () => {
     // ponytail: read-modify-write without locking; fine for one writer every 10 min.
     const base = ((await store.get(`day/${day}`, { type: 'json' })) as DayFile | null) ?? emptyDay();
     await store.setJSON(`day/${day}`, mergeDay(base, add));
+  }
+
+  // Dam figures are daily and only ship inside ThaiWater's 10 MB thailand_main, so refresh them every 3 h, not every run.
+  const up = (await store.get('upstream', { type: 'json' })) as Upstream | null;
+  if (!up || now - Date.parse(up.fetchedAt) > 3 * 3600_000) {
+    try {
+      const dams = parseDams(await getJson(`${TW}/thailand_main`));
+      if (dams.length) await store.setJSON('upstream', { fetchedAt: new Date(now).toISOString(), dams } satisfies Upstream);
+    } catch (e) { console.error('dams failed:', e); }
   }
 
   const { blobs } = await store.list({ prefix: 'day/' });

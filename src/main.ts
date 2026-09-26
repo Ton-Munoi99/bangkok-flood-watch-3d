@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs, fetchCameras, longdoCameraUrl,
-  fetchEvents, fetchTrafficIndex, type FloodEvent,
+  fetchEvents, fetchTrafficIndex, fetchUpstream, type FloodEvent, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
@@ -21,7 +21,7 @@ const T = {
     search: 'ค้นหาเขต เช่น จตุจักร, บางเขน', simBanner: 'โหมดจำลอง — สีเขตคำนวณจากความสูงพื้นที่สมมติ ไม่ใช่สถานการณ์จริง',
     rotL: 'หมุนซ้าย 45°', rotR: 'หมุนขวา 45°', spinBtn: 'หมุนรอบ 360° (กดอีกครั้งเพื่อหยุด)',
     sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', sideTitleAt: (t: string) => `สถานการณ์ ณ ${t}`,
-    liveBtn: '● สด', traffic: '🚗 จราจรสด (Google Maps)', trafficTip: 'เปิด Google Maps พร้อมชั้นจราจรแบบสด ตรงตำแหน่งที่แผนที่แสดงอยู่', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
+    liveBtn: '● สด', traffic: '🚗 Google Maps', trafficTip: 'เปิด Google Maps พร้อมชั้นจราจรแบบสด ตรงตำแหน่งที่แผนที่แสดงอยู่', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
     histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
     histRange: 'ย้อนหลังได้ 7 วัน · ข้อมูลฝนมีเฉพาะช่วงที่ระบบเริ่มเก็บ', histReport: 'แจ้งน้ำท่วม (ข้อมูลย้อนหลังไม่เก็บข้อความ/รูปภาพ)', via: 'ผ่าน สสน.', histSrc: 'ย้อนหลัง', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
     play: '▶ จำลองฝนตก', pause: '⏸ หยุด', layers: '🗂 ชั้นข้อมูล', layersHint: 'เลือกสิ่งที่แสดงบนแผนที่',
@@ -34,6 +34,16 @@ const T = {
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
+    upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
+    upDam: (pct: number, inflow: number, release: number) => `ความจุ ${pct.toFixed(0)}% · ไหลเข้า ${inflow.toFixed(1)} · ระบาย ${release.toFixed(1)} ล้าน ลบ.ม./วัน`,
+    upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upNone: 'ยังไม่มีข้อมูลเขื่อน',
+    linksBtn: '🔗 ลิงก์', linksTitle: '🔗 ลิงก์ติดตามสถานการณ์',
+    links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', 'พยากรณ์ระดับน้ำในแม่น้ำ ล่วงหน้า 7 วัน'],
+      ['ThaiWater (สสน.)', 'https://www.thaiwater.net', 'ระดับน้ำ ฝน เรดาร์ และรายงานสถานการณ์น้ำทั่วประเทศ'],
+      ['iTIC Live', 'https://live.iticfoundation.org/', 'ถนนน้ำท่วม เหตุการณ์ และกล้อง CCTV ทั่วกรุงเทพฯ'],
+      ['เว็บระดับน้ำท่วมถนน กทม.', 'https://weather.bangkok.go.th/flood/', 'สำนักการระบายน้ำ (เปิดได้จากในประเทศไทย)'],
+      ['Traffy Fondue', 'https://share.traffy.in.th/teamchadchart', 'แจ้งเหตุและติดตามเรื่องร้องเรียนกับ กทม.'],
+      ['กรมอุตุนิยมวิทยา', 'https://www.tmd.go.th', 'พยากรณ์อากาศและประกาศเตือนภัย']] as [string, string, string][],
     hotlineBtn: '📞 สายด่วน', rainBtn: '🌧️ พยากรณ์ฝน', hotlineTitle: '📞 สายด่วนขอความช่วยเหลือ',
     hotlineNote: 'บนมือถือ กดที่เบอร์เพื่อโทรได้ทันที', rainTitle2: '🌧️ พยากรณ์ฝน กทม. และปริมณฑล',
     rainTabFc: 'พยากรณ์ฝน', rainTabRadar: 'เรดาร์', rainTabAccu: 'ฝนสะสม', rainNote: 'ข้อมูลจาก Windy (โมเดล ECMWF) — ใช้แถบเวลาด้านล่างเพื่อดูล่วงหน้า',
@@ -74,7 +84,7 @@ const T = {
     search: 'Search district, e.g. Chatuchak', simBanner: 'Simulation mode — district colours use hypothetical ground heights, not the real situation',
     rotL: 'Rotate left 45°', rotR: 'Rotate right 45°', spinBtn: 'Orbit 360° (press again to stop)',
     sideTitle: 'Flood situation now', sideTitleAt: (t: string) => `Situation at ${t}`,
-    liveBtn: '● Live', traffic: '🚗 Traffic (Google Maps)', trafficTip: 'Open Google Maps with the live traffic layer at the current map view', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
+    liveBtn: '● Live', traffic: '🚗 Google Maps', trafficTip: 'Open Google Maps with the live traffic layer at the current map view', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
     histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
     histRange: 'Up to 7 days back · rain only from when recording started', histReport: 'Flood report (history keeps no text/photos)', via: 'via HII', histSrc: 'history', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
     play: '▶ Simulate rain', pause: '⏸ Pause', layers: '🗂 Layers', layersHint: 'choose what the map shows',
@@ -87,6 +97,16 @@ const T = {
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
+    upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
+    upDam: (pct: number, inflow: number, release: number) => `${pct.toFixed(0)}% full · in ${inflow.toFixed(1)} · out ${release.toFixed(1)} million m³/day`,
+    upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upNone: 'No dam data yet',
+    linksBtn: '🔗 Links', linksTitle: '🔗 Follow the situation',
+    links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', '7-day river flood forecasts'],
+      ['ThaiWater (HII)', 'https://www.thaiwater.net', 'Water levels, rain, radar and national reports'],
+      ['iTIC Live', 'https://live.iticfoundation.org/', 'Flooded roads, incidents and CCTV across Bangkok'],
+      ['BMA road-flood sensors', 'https://weather.bangkok.go.th/flood/', 'Drainage & Sewerage Dept. (reachable from Thailand)'],
+      ['Traffy Fondue', 'https://share.traffy.in.th/teamchadchart', 'Report and track issues with the BMA'],
+      ['Thai Meteorological Dept.', 'https://www.tmd.go.th', 'Forecasts and weather warnings']] as [string, string, string][],
     hotlineBtn: '📞 Hotlines', rainBtn: '🌧️ Rain forecast', hotlineTitle: '📞 Emergency hotlines (Thailand)',
     hotlineNote: 'On a phone, tap a number to call.', rainTitle2: '🌧️ Rain forecast — Bangkok & vicinity',
     rainTabFc: 'Forecast', rainTabRadar: 'Radar', rainTabAccu: 'Accumulated', rainNote: 'Data from Windy (ECMWF model) — use the timeline to look ahead.',
@@ -170,6 +190,7 @@ let rain: Result<Rain> = { items: [], snapshot: false };
 let reports: Result<Report> = { items: [], snapshot: false };
 let events: Result<FloodEvent> = { items: [], snapshot: false };
 let trafficIdx: number | null = null;
+let upstream: UpstreamView | null = null; // live only (dams update daily)
 let historyAt: number | null = null; // null = live
 const openSecs = new Set(['alerts']); // side-panel sections the viewer has open
 const secOpen = (id: string) => openSecs.has(id);
@@ -395,6 +416,7 @@ const firstFetch = fetchAll();
 async function refresh(pending = fetchAll()) {
   if (historyAt != null) return showHistory(historyAt);
   $('refresh').setAttribute('disabled', '');
+  fetchUpstream().then((v) => { upstream = v; render(); });
   // Show each source as soon as it arrives instead of waiting for the slowest one.
   // Road decides the "all clear" wording, so the page stays in its loading state until road is in.
   const [pRoad, pCanal, pRain, pReports, pEvents, pTraffic] = pending;
@@ -590,6 +612,16 @@ function render() {
     [...canals.items].sort((a, b) => b.situation - a.situation).map((c) => `<button class="item" style="--c:${SITUATION_COLORS[c.situation]}" data-canal="${canals.items.indexOf(c)}">
       <div class="t"><span>${esc(name(c))}</span><span>${c.wl.toFixed(2)} m</span></div>
       <div class="s">${L.situation[c.situation] ?? ''}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}</div></button>`).join(''));
+
+  if (historyAt == null && upstream && (upstream.dams.length || upstream.c13)) {
+    const damColor = (p: number) => (p >= 100 ? LEVEL_COLORS[3] : p >= 80 ? LEVEL_COLORS[2] : LEVEL_COLORS[0]);
+    const c13 = upstream.c13 ? `<div class="item" style="--c:var(--accent)"><div class="t"><span>${L.upC13}</span><span>${upstream.c13.discharge.toLocaleString()} ${L.upUnit}</span></div>
+      <div class="s">${esc(upstream.c13.time)}</div></div>` : '';
+    const dams = upstream.dams.map((d) => `<div class="item" style="--c:${damColor(d.pct)}"><div class="t"><span>${esc(lang === 'th' ? d.th : d.en || d.th)}</span><span>${d.pct.toFixed(0)}%</span></div>
+      <div class="s">${L.upDam(d.pct, d.inflow, d.release)} · ${esc(d.date)}</div></div>`).join('');
+    html += section('upstream', upstream.c13 ? `${L.upTitle} · ${upstream.c13.discharge.toLocaleString()} ${L.upUnit}` : L.upTitle,
+      c13 + (dams || `<div class="empty">${L.upNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.upNote}</div>`);
+  }
 
   // Last, as asked: roads staff reported as impassable for small cars.
   if (impassable.length) html += section('impassable', `${L.impassable} (${impassable.length})`, impassable.map((e) => eventItem(e, 'alert')).join(''));
@@ -829,6 +861,7 @@ function applyLang() {
   $('langEN').classList.toggle('active', lang === 'en');
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
+  $('linksList').innerHTML = L.links.map(([n, u, d]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a><small>${esc(d)}</small></li>`).join('');
   $('hotlineList').innerHTML = L.hotlines.map(([n, who]) => `<li><span>${esc(who)}</span><a href="tel:${n}">${n}</a></li>`).join('');
   $('trafficBtn').title = L.trafficTip;
   document.querySelector('.layers summary')!.innerHTML = `${esc(L.layers)} <small>— ${esc(L.layersHint)}</small>`;
@@ -858,6 +891,7 @@ function wireDialogs() {
     });
   }
   $('hotlineBtn').addEventListener('click', () => $<HTMLDialogElement>('hotlineDlg').showModal());
+  $('linksBtn').addEventListener('click', () => $<HTMLDialogElement>('linksDlg').showModal());
   // Windy's official embed widget, centred on Bangkok; loaded only when opened.
   const windy = (overlay: string) => {
     const q = new URLSearchParams({

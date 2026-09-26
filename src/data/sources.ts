@@ -5,7 +5,7 @@
 
 import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, SENSOR_SILENT_MS, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
-  type DayFile, type EventBy, type FloodEvent, type Meta,
+  parseC13, type Dam, type DayFile, type EventBy, type FloodEvent, type Meta, type Upstream,
 } from './history.ts';
 export type { FloodEvent };
 export { bkkMs };
@@ -320,4 +320,14 @@ export async function fetchEvents(): Promise<Result<FloodEvent>> {
 export async function fetchTrafficIndex(): Promise<number | null> {
   const d = await getJson(LONGDO_TRAFFIC_INDEX).catch(() => null);
   return d && Number.isFinite(Number(d.index)) ? Number(d.index) : null;
+}
+
+// ---------- Upstream (น้ำเหนือ): dams via our collector, Chao Phraya Dam outflow (C.13) live from ThaiWater ----------
+export interface UpstreamView { dams: Dam[]; c13: { discharge: number; time: string } | null }
+export async function fetchUpstream(): Promise<UpstreamView> {
+  const [up, load] = await Promise.all([
+    getJson('/api/history/upstream').catch(() => null) as Promise<Upstream | null>,
+    getJson(`${TW_BASE}/waterlevel_load?province_code=18`).catch(() => null),
+  ]);
+  return { dams: up?.dams ?? [], c13: load ? parseC13(load) : null };
 }

@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseLongdoEvents, situation, slot, slotMs } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, situation, slot, slotMs } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -56,3 +56,16 @@ const eb = new DayBuilder();
 eb.event(evs[0], Date.parse('2026-09-26T12:00:00+07:00'));
 assert.deepStrictEqual([...eb.days.keys()], ['2026-09-25', '2026-09-26']);
 console.log('events ok');
+
+// Upstream parsers: only the four Chao Phraya dams, in order; C.13 by station code.
+const dams = parseDams({ dam: { data: { data: [
+  { dam_date: '2026-09-26', dam_storage_percent: 90.8, dam_inflow: 60, dam_released: 15, dam: { dam_name: { th: 'วชิราลงกรณ', en: 'Vajiralongkorn' } } },
+  { dam_date: '2026-09-26', dam_storage_percent: 83, dam_inflow: 49, dam_released: 2.2, dam: { dam_name: { th: 'ป่าสักชลสิทธิ์', en: 'Pasak' } } },
+  { dam_date: '2026-09-26', dam_storage_percent: 62.7, dam_inflow: 31.4, dam_released: 3, dam: { dam_name: { th: 'ภูมิพล', en: 'Bhumibol' } } },
+] } } });
+assert.deepStrictEqual(dams.map((d) => d.th), ['ภูมิพล', 'ป่าสักชลสิทธิ์']);
+assert.deepStrictEqual(parseC13({ waterlevel_data: { data: [
+  { discharge: null, waterlevel_datetime: 'x', station: { tele_station_oldcode: 'C.2' } },
+  { discharge: '1950.00', waterlevel_datetime: '2026-09-26 17:00', station: { tele_station_oldcode: 'C.13' } },
+] } }), { discharge: 1950, time: '2026-09-26 17:00' });
+console.log('upstream ok');

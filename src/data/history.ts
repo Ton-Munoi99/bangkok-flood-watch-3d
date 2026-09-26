@@ -185,3 +185,29 @@ export function parseLongdoEvents(raw: LongdoEventRaw[]): FloodEvent[] {
     .filter((e) => Number.isFinite(e.lng) && Number.isFinite(e.lat) && inBangkok(e.lng, e.lat) && e.start <= e.stop);
 }
 export const isActive = (e: { start: string; stop: string }, at: number) => Date.parse(e.start) <= at && at <= Date.parse(e.stop);
+
+// ---------- Upstream (น้ำเหนือ): the four main Chao Phraya-basin dams + Chao Phraya Dam outflow (C.13) ----------
+// Srinagarind/Vajiralongkorn are in the Mae Klong basin and don't drain through Bangkok, so they're left out.
+export const CHAO_PHRAYA_DAMS = ['ภูมิพล', 'สิริกิติ์', 'แควน้อยบำรุงแดน', 'ป่าสักชลสิทธิ์'];
+export interface Dam { th: string; en: string; date: string; pct: number; inflow: number; release: number } // inflow/release: million m³/day
+export interface Upstream { fetchedAt: string; dams: Dam[] }
+
+/** Pick the Chao Phraya-basin dams out of ThaiWater's (10 MB) thailand_main payload. */
+export function parseDams(main: { dam?: { data?: unknown } }): Dam[] {
+  const d = main?.dam?.data as { data?: unknown[] } | unknown[] | undefined;
+  const rows = (Array.isArray(d) ? d : d?.data ?? []) as {
+    dam_date: string; dam_storage_percent: number | null; dam_inflow: number | null; dam_released: number | null; dam?: { dam_name?: { th?: string; en?: string } };
+  }[];
+  return CHAO_PHRAYA_DAMS.map((name) => rows.find((r) => r.dam?.dam_name?.th === name)).filter((r): r is NonNullable<typeof r> => !!r)
+    .map((r) => ({
+      th: r.dam!.dam_name!.th!, en: r.dam?.dam_name?.en ?? '', date: r.dam_date,
+      pct: Number(r.dam_storage_percent), inflow: Number(r.dam_inflow), release: Number(r.dam_released),
+    }));
+}
+
+/** Chao Phraya Dam tailwater station C.13 (Chainat): outflow in m³/s, from ThaiWater waterlevel_load for Chainat (18). */
+export function parseC13(load: { waterlevel_data?: { data?: unknown[] } }) {
+  const rows = (load?.waterlevel_data?.data ?? []) as { discharge: string | number | null; waterlevel_datetime: string; station?: { tele_station_oldcode?: string } }[];
+  const r = rows.find((x) => x.station?.tele_station_oldcode === 'C.13' && x.discharge != null);
+  return r ? { discharge: Number(r.discharge), time: r.waterlevel_datetime } : null;
+}
