@@ -4,16 +4,29 @@
 //   node scripts/collect-bma.ts --dry                      # just print what would be sent
 // Identifies itself honestly; reads only the public home page, once per run.
 import { readFileSync } from 'node:fs';
-import { parseBmaHome, slot } from '../src/data/history.ts';
+import { TW, parseBmaHome, slot } from '../src/data/history.ts';
 
 const UA = 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)';
 const INGEST_URL = process.env.INGEST_URL ?? 'https://bangkokflood.netlify.app/api/ingest';
 const dry = process.argv.includes('--dry');
 
-// Station list (codes, coordinates, English names) — BMA's sensor sites rarely change.
-const stations = JSON.parse(readFileSync(new URL('../src/data/mock/bma_flood.json', import.meta.url), 'utf8')) as
-  { flood_code: string; flood_name: string; flood_name_en: string; latitude: number; longitude: number }[];
+// Station list (codes, coordinates, English names). Base: the saved BMA list; plus ThaiWater's copy of the
+// same sensor network, which also has stations the BMA page omitted when the list was saved.
+type Station = { flood_code: string; flood_name: string; flood_name_en: string; latitude: number; longitude: number };
+const stations = JSON.parse(readFileSync(new URL('../src/data/mock/bma_flood.json', import.meta.url), 'utf8')) as Station[];
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+try {
+  const tw = (await (await fetch(`${TW}/flood_road`, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(30_000) })).json()).data as
+    { station: { floodroad_name: { th: string }; floodroad_oldcode: string; floodroad_lat: number; floodroad_long: number } }[];
+  const known = new Set(stations.map((s) => s.flood_code));
+  for (const { station: t } of tw) {
+    if (!t.floodroad_oldcode || known.has(t.floodroad_oldcode) || !t.floodroad_lat) continue;
+    stations.push({ flood_code: t.floodroad_oldcode, flood_name: norm(t.floodroad_name.th), flood_name_en: '', latitude: t.floodroad_lat, longitude: t.floodroad_long });
+    known.add(t.floodroad_oldcode);
+  }
+} catch (e) {
+  console.log('ThaiWater station list unavailable, using saved list only:', (e as Error).message);
+}
 
 // BMA's firewall intermittently answers 403 even to normal traffic; a block usually clears within minutes.
 // Retry politely (same honest User-Agent, spaced out) rather than losing the whole 30-min slot.
