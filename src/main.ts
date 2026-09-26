@@ -1,4 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
+// MapLibre v6 finds its worker next to its own file, which breaks once bundled; ship it as a separate asset instead.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
@@ -120,6 +122,7 @@ let simOn = false;
 let simCm = 60;
 
 // ---------------- map ----------------
+maplibregl.setWorkerUrl(workerUrl);
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://tiles.openfreemap.org/styles/dark',

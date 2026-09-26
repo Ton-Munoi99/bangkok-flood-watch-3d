@@ -13,6 +13,7 @@ const proxy = {
 export default defineConfig({
   // ponytail: MapLibre v6 loads its worker via a relative URL; Vite's dep pre-bundling breaks that path.
   optimizeDeps: { exclude: ['maplibre-gl'] },
+  worker: { format: 'es' }, // MapLibre's worker is an ES module
   server: { proxy },
   preview: { proxy },
 });
