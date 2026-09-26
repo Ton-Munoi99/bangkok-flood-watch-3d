@@ -6,7 +6,8 @@
 export const bkkMs = (s: string) => Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(s) ? s : `${s.replace(' ', 'T')}+07:00`);
 
 export interface Meta {
-  road: Record<string, { th: string; en: string; lng: number; lat: number }>;
+  // seen = epoch ms of the station's latest reading; stations silent for days are left out of history views.
+  road: Record<string, { th: string; en: string; lng: number; lat: number; seen?: number }>;
   canal: Record<string, { th: string; en: string; lng: number; lat: number; bank: number | null; ground: number | null; agency: string }>;
   rain: Record<string, { th: string; en: string; lng: number; lat: number }>;
 }
@@ -25,6 +26,8 @@ export interface DayFile {
 export const emptyMeta = (): Meta => ({ road: {}, canal: {}, rain: {} });
 export const emptyDay = (): DayFile => ({ road: {}, canal: {}, rain: {}, reports: {}, events: {} });
 export const HISTORY_DAYS = 7;
+/** A road sensor that hasn't reported for this long is treated as offline, not as "0 cm". */
+export const SENSOR_SILENT_MS = 3 * 86400_000;
 
 const BKK_OFFSET = 7 * 3600 * 1000;
 /** Epoch ms -> Bangkok { day: "YYYY-MM-DD", bucket: "HH:MM" } floored to 10 minutes. */
@@ -101,8 +104,9 @@ export function addFloodRoad(meta: Meta, b: DayBuilder, rows: TwFloodRoad[], fre
   for (const r of rows) {
     const s = r.station, code = s.floodroad_oldcode;
     if (!code || !s.floodroad_lat) continue;
-    meta.road[code] = { th: s.floodroad_name.th.replace(/\s+/g, ' ').trim(), en: meta.road[code]?.en ?? '', lng: s.floodroad_long, lat: s.floodroad_lat };
     const ms = bkkMs(r.floodroad_datetime);
+    const seen = Math.max(meta.road[code]?.seen ?? 0, Number.isFinite(ms) ? ms : 0);
+    meta.road[code] = { th: s.floodroad_name.th.replace(/\s+/g, ' ').trim(), en: meta.road[code]?.en ?? '', lng: s.floodroad_long, lat: s.floodroad_lat, seen };
     if (ms >= freshSince && r.floodroad_value != null) b.road(ms, code, Number(r.floodroad_value));
   }
 }

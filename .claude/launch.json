@@ -38,6 +38,22 @@
       "env": {
         "HISTORY_DIR": "/private/tmp/claude-501/-Users-macbook-Desktop-Bangkok-flood-map/c3f30c2f-f7a6-4ffc-9d29-28a1ac2c6bd5/scratchpad/backfill"
       }
+    },
+    {
+      "name": "dev-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5176",
+        "--strictPort"
+      ],
+      "port": 5176,
+      "env": {
+        "VITE_DATA_MODE": "mock"
+      }
     }
   ]
 }

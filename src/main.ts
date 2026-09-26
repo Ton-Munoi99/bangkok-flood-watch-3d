@@ -119,6 +119,8 @@ const t = () => T[lang];
 const $ = <E extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as E;
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const LEVEL_COLORS = ['#3ed598', '#f5c748', '#f5924b', '#f2495c'];
+// Shared with the legend swatch via the --l-none CSS variable (MapLibre paint can't read CSS variables itself).
+const NO_DATA_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--l-none').trim() || '#1c2438';
 const SITUATION_COLORS = ['#8996b0', '#8996b0', '#8996b0', '#3ed598', '#f5924b', '#f2495c'];
 const hhmm = (s: string | null) => (s ? s.replace('T', ' ').slice(11, 16) : '-'); // BMA/ThaiWater times are already Bangkok local
 const bkkTime = (iso: string) => new Date(iso).toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -251,7 +253,7 @@ map.on('load', async () => {
   map.addLayer({
     id: 'district-fill', type: 'fill', source: 'districts',
     paint: {
-      'fill-color': ['match', lvlState, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], '#1c2438'],
+      'fill-color': ['match', lvlState, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], NO_DATA_COLOR],
       'fill-opacity': ['case', ['<', lvlState, 0], 0.12, 0.28],
     },
   }, firstLabel);

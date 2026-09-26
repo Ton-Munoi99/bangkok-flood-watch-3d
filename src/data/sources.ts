@@ -4,7 +4,7 @@
 // live and snapshot data go through the same parser.
 
 import {
-  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
+  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, SENSOR_SILENT_MS, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
   type DayFile, type EventBy, type FloodEvent, type Meta,
 } from './history.ts';
 export type { FloodEvent };
@@ -31,24 +31,27 @@ export const STALE_MS = 6 * 3600 * 1000;
 
 
 async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]>, timeOf: (x: T) => string): Promise<Result<T>> {
-  if (FORCE_MOCK) return { items: await mock(), snapshot: true };
+  if (FORCE_MOCK) return fromSnapshot(mock, timeOf);
   try {
     return { items: await live(), snapshot: false };
   } catch (e) {
     console.warn('live source failed, using snapshot', e);
-    return { ...snapshotResult(await mock(), timeOf), error: String(e) };
+    return { ...(await fromSnapshot(mock, timeOf)), error: String(e) };
   }
+}
+
+/** A bundled snapshot as a labelled Result. Mock mode (offline dev/demos) always shows it; otherwise a
+ *  snapshot older than STALE_MS is dropped entirely, since old readings shown during a live flood would mislead. */
+async function fromSnapshot<T>(mock: () => Promise<T[]>, timeOf: (x: T) => string): Promise<Result<T>> {
+  const items = await mock();
+  const newest = Math.max(...items.map((x) => bkkMs(timeOf(x))));
+  if (!Number.isFinite(newest)) return { items: [], snapshot: true, stale: true };
+  if (!FORCE_MOCK && Date.now() - newest > STALE_MS) return { items: [], snapshot: true, stale: true };
+  return { items, snapshot: true, asOf: new Date(newest).toISOString() };
 }
 
 // Per-request timeout so one unreachable source doesn't stall the page; its fallback is used instead.
 // BMA gets a short one (it never answers from overseas hosts); Traffy can be slow under load.
-/** Old readings shown during a live flood would mislead, so a snapshot older than STALE_MS is dropped entirely. */
-function snapshotResult<T>(items: T[], timeOf: (x: T) => string): Result<T> {
-  const newest = Math.max(...items.map((x) => bkkMs(timeOf(x))));
-  if (!Number.isFinite(newest) || Date.now() - newest > STALE_MS) return { items: [], snapshot: true, stale: true };
-  return { items, snapshot: true, asOf: new Date(newest).toISOString() };
-}
-
 async function fetchOk(url: string, timeoutMs = 15_000) {
   const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
@@ -101,7 +104,7 @@ const parseBma = (raw: BmaRaw[]): RoadFlood[] =>
 export let roadVia = '';
 
 export async function fetchRoadFlood(): Promise<Result<RoadFlood>> {
-  const bundled = async () => snapshotResult(parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]), (r) => r.updated);
+  const bundled = () => fromSnapshot(async () => parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]), (r) => r.updated);
   if (FORCE_MOCK) return bundled();
   roadVia = '';
   // 1. Direct read only works from a Thai IP, i.e. the local dev server; deployed, it would just time out.
@@ -243,7 +246,7 @@ export async function loadHistory(at: number): Promise<Snapshot> {
   // Road: latest bucket only — stations absent from a bucket read 0 cm.
   const roadB = inWindow('road').at(-1);
   const dayMax = (code: string) => Math.max(0, ...Object.entries(today?.road ?? {}).filter(([b]) => slotMs(d0, b) <= at).map(([, v]) => v[code] ?? 0));
-  const road: RoadFlood[] = roadB ? Object.entries(meta.road).map(([code, m]) => {
+  const road: RoadFlood[] = roadB ? Object.entries(meta.road).filter(([, m]) => m.seen == null || m.seen >= at - SENSOR_SILENT_MS).map(([code, m]) => {
     const cm = roadB.v[code] ?? 0;
     return {
       id: code, nameTh: m.th, nameEn: m.en || m.th, lng: m.lng, lat: m.lat, cm, maxCm: dayMax(code) || null, start: null,

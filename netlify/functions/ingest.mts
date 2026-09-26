@@ -45,7 +45,7 @@ export default async (req: Request) => {
   const meta = ((await store.get('meta', { type: 'json' })) as Meta | null) ?? emptyMeta();
   const b = new DayBuilder();
   for (const r of p.readings) {
-    meta.road[r.code] = { th: r.th, en: r.en || meta.road[r.code]?.en || '', lng: r.lng, lat: r.lat };
+    meta.road[r.code] = { th: r.th, en: r.en || meta.road[r.code]?.en || '', lng: r.lng, lat: r.lat, seen: Math.max(meta.road[r.code]?.seen ?? 0, bkkMs(r.updated)) };
     b.road(bkkMs(r.updated), r.code, r.cm);
   }
   await store.setJSON('meta', meta);
