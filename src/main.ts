@@ -172,8 +172,8 @@ let simCm = 60;
 maplibregl.setWorkerUrl(workerUrl);
 const map = new maplibregl.Map({
   container: 'map',
-  // Light basemap: street names stay readable when zoomed in, and the risk colours stand out.
-  style: 'https://tiles.openfreemap.org/styles/positron',
+  // Detailed light basemap (roads coloured by class, POIs, transit, land use) — closest to Google Maps.
+  style: 'https://tiles.openfreemap.org/styles/liberty',
   center: [100.56, 13.77],
   zoom: 10.6,
   pitch: 45,
@@ -218,7 +218,9 @@ const setData = (id: string, data: ReturnType<typeof fc>) => (map.getSource(id) 
 
 map.on('load', async () => {
   const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
-  // Positron's street names are pale and small; make them readable over 3D buildings and district colours.
+  // Liberty ships its own 3D buildings; drop them so ours (with the layer toggle) is the only set.
+  if (map.getLayer('building-3d')) map.removeLayer('building-3d');
+  // Make street names readable over 3D buildings and district colours.
   for (const id of ['highway-name-path', 'highway-name-minor', 'highway-name-major']) {
     if (!map.getLayer(id)) continue;
     map.setPaintProperty(id, 'text-color', '#1f2937');
@@ -263,7 +265,10 @@ map.on('load', async () => {
     id: 'district-fill', type: 'fill', source: 'districts',
     paint: {
       'fill-color': ['match', lvlState, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], NO_DATA_COLOR],
-      'fill-opacity': ['case', ['<', lvlState, 0], 0.12, 0.3],
+      // Strong at city scale, faint at street level so the basemap detail (shops, alleys, names) shows through.
+      'fill-opacity': ['interpolate', ['linear'], ['zoom'],
+        11, ['case', ['<', lvlState, 0], 0.12, 0.32],
+        15, ['case', ['<', lvlState, 0], 0.03, 0.1]],
     },
   }, firstLabel);
   map.addLayer({ id: 'district-lines', type: 'line', source: 'districts', paint: { 'line-color': '#1e6e8c', 'line-width': 1, 'line-opacity': 0.6 } }, firstLabel);
@@ -273,7 +278,7 @@ map.on('load', async () => {
     id: 'buildings-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
     paint: {
       // Many Bangkok footprints have no height; without the coalesce the colour expression fails and renders black.
-      'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, '#e1e3e8', 60, '#c9ced8', 200, '#aeb7c6'],
+      'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, '#ebe4dc', 60, '#dcd2c8', 200, '#c9bdb2'],
       'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 3],
       'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
       'fill-extrusion-opacity': 0.8,
