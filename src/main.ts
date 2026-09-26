@@ -34,6 +34,11 @@ const T = {
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
+    hotlineBtn: '📞 สายด่วน', rainBtn: '🌧️ พยากรณ์ฝน', hotlineTitle: '📞 สายด่วนขอความช่วยเหลือ',
+    hotlineNote: 'บนมือถือ กดที่เบอร์เพื่อโทรได้ทันที', rainTitle2: '🌧️ พยากรณ์ฝน กทม. และปริมณฑล',
+    rainTabFc: 'พยากรณ์ฝน', rainTabRadar: 'เรดาร์', rainTabAccu: 'ฝนสะสม', rainNote: 'ข้อมูลจาก Windy (โมเดล ECMWF) — ใช้แถบเวลาด้านล่างเพื่อดูล่วงหน้า',
+    hotlines: [['1784', 'ปภ. แจ้งเหตุสาธารณภัย'], ['1669', 'เจ็บป่วยฉุกเฉิน'], ['191', 'เหตุด่วนเหตุร้าย'], ['199', 'ดับเพลิง / กู้ภัย'],
+      ['1555', 'กรุงเทพมหานคร'], ['1460', 'กรมชลประทาน'], ['1182', 'กรมอุตุนิยมวิทยา'], ['1586', 'กรมทางหลวง (เส้นทางน้ำท่วม)'], ['1146', 'กรมทางหลวงชนบท']],
     lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
     impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
     byLabel: { doh: 'เจ้าหน้าที่กรมทางหลวง', itic: 'เจ้าหน้าที่ iTIC', public: 'ผู้ใช้แอป iTIC' } as Record<string, string>, events: 'เหตุการณ์',
@@ -82,6 +87,11 @@ const T = {
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
+    hotlineBtn: '📞 Hotlines', rainBtn: '🌧️ Rain forecast', hotlineTitle: '📞 Emergency hotlines (Thailand)',
+    hotlineNote: 'On a phone, tap a number to call.', rainTitle2: '🌧️ Rain forecast — Bangkok & vicinity',
+    rainTabFc: 'Forecast', rainTabRadar: 'Radar', rainTabAccu: 'Accumulated', rainNote: 'Data from Windy (ECMWF model) — use the timeline to look ahead.',
+    hotlines: [['1784', 'Disaster Prevention (DDPM)'], ['1669', 'Medical emergency'], ['191', 'Police emergency'], ['199', 'Fire / rescue'],
+      ['1555', 'Bangkok Metropolitan Administration'], ['1460', 'Royal Irrigation Dept.'], ['1182', 'Thai Meteorological Dept.'], ['1586', 'Dept. of Highways (flooded routes)'], ['1146', 'Dept. of Rural Roads']],
     lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
     impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
     byLabel: { doh: 'DOH staff', itic: 'iTIC staff', public: 'iTIC app user' } as Record<string, string>, events: 'incidents',
@@ -749,6 +759,7 @@ function wireControls() {
 
   $('refresh').addEventListener('click', () => refresh());
 
+
   // Link out to Google Maps' live traffic layer at the current view (a link only — no Google data is copied here).
   // MapLibre uses 512 px tiles, Google 256 px, hence +1 zoom.
   $('trafficBtn').addEventListener('click', () => {
@@ -818,6 +829,7 @@ function applyLang() {
   $('langEN').classList.toggle('active', lang === 'en');
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
+  $('hotlineList').innerHTML = L.hotlines.map(([n, who]) => `<li><span>${esc(who)}</span><a href="tel:${n}">${n}</a></li>`).join('');
   $('trafficBtn').title = L.trafficTip;
   document.querySelector('.layers summary')!.innerHTML = `${esc(L.layers)} <small>— ${esc(L.layersHint)}</small>`;
   $('trafficIdx').title = L.trafficTipIdx;
@@ -836,5 +848,33 @@ function applyLang() {
 window.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false }); // trackpad pinch (Chrome/Edge/Firefox)
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault()); // Safari pinch
 
+
+// Hotlines + rain forecast work without the map (wired at startup, not on map load) — they matter most when things break.
+function wireDialogs() {
+  // Native <dialog>; backdrop click or ✕ closes.
+  for (const dlg of document.querySelectorAll<HTMLDialogElement>('dialog.dlg')) {
+    dlg.addEventListener('click', (e) => {
+      if (e.target === dlg || (e.target as HTMLElement).closest('[data-close]')) dlg.close();
+    });
+  }
+  $('hotlineBtn').addEventListener('click', () => $<HTMLDialogElement>('hotlineDlg').showModal());
+  // Windy's official embed widget, centred on Bangkok; loaded only when opened.
+  const windy = (overlay: string) => {
+    const q = new URLSearchParams({
+      lat: '13.75', lon: '100.55', detailLat: '13.75', detailLon: '100.55', zoom: '8', level: 'surface', overlay, product: 'ecmwf',
+      menu: '', message: 'true', marker: '', calendar: 'now', pressure: '', type: 'map', location: 'coordinates', detail: '',
+      metricWind: 'km/h', metricTemp: '°C', radarRange: '-1',
+    });
+    $<HTMLIFrameElement>('windyFrame').src = `https://embed.windy.com/embed2.html?${q}`;
+    document.querySelectorAll<HTMLElement>('[data-overlay]').forEach((b) => b.classList.toggle('on', b.dataset.overlay === overlay));
+  };
+  $('rainBtn').addEventListener('click', () => {
+    if (!$<HTMLIFrameElement>('windyFrame').src) windy('rain');
+    $<HTMLDialogElement>('rainDlg').showModal();
+  });
+  document.querySelectorAll<HTMLElement>('[data-overlay]').forEach((b) => b.addEventListener('click', () => windy(b.dataset.overlay!)));
+}
+
+wireDialogs();
 // Fill static UI text right away; the map/data can take several seconds.
 applyLang();

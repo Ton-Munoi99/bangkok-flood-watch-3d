@@ -129,3 +129,16 @@ input[type=checkbox] { accent-color: var(--accent); }
 .traffic-row .btn { margin: 0; }
 /* the open layer picker never grows past the screen */
 .layers[open] { max-height: calc(100vh - 230px); max-height: calc(100dvh - 230px); overflow-y: auto; }
+/* quick actions + dialogs (hotlines, rain forecast) */
+.quick-row { display: flex; gap: 6px; margin: 0 0 6px; flex-wrap: wrap; }
+.quick-row .btn { margin: 0; }
+.dlg { color: var(--text); padding: 12px 14px; width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; }
+.dlg::backdrop { background: rgba(0, 0, 0, .45); }
+.dlg-wide { width: min(960px, calc(100vw - 24px)); }
+.dlg-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
+.dlg-tabs { display: flex; gap: 4px; }
+.dlg-tabs .btn.on { background: var(--accent); color: #fff; }
+.hotlines { list-style: none; margin: 0; padding: 0; }
+.hotlines li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+.hotlines a { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--l3); text-decoration: none; }
+#windyFrame { width: 100%; height: min(560px, calc(100dvh - 170px)); border: 0; border-radius: 8px; background: #0b1322; }

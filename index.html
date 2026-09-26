@@ -39,6 +39,10 @@
     <button id="refresh" class="btn small" data-i="refresh"></button>
   </div>
   <p class="summary" id="summary"></p>
+  <div class="quick-row">
+    <button class="btn small" id="hotlineBtn" data-i="hotlineBtn"></button>
+    <button class="btn small" id="rainBtn" data-i="rainBtn"></button>
+  </div>
   <div class="traffic-row">
     <span id="trafficIdx" class="tidx" hidden></span>
     <a id="trafficBtn" class="btn small" href="https://www.google.com/maps/@13.7563,100.5018,12z/data=!5m1!1e1" target="_blank" rel="noopener" data-i="traffic"></a>
@@ -79,6 +83,20 @@
   </details>
 </div>
 
+<dialog id="hotlineDlg" class="panel dlg">
+  <div class="dlg-head"><b data-i="hotlineTitle"></b><button class="btn small" data-close aria-label="close">✕</button></div>
+  <ul class="hotlines" id="hotlineList"></ul>
+  <p class="note" data-i="hotlineNote"></p>
+</dialog>
+<dialog id="rainDlg" class="panel dlg dlg-wide">
+  <div class="dlg-head">
+    <b data-i="rainTitle2"></b>
+    <span class="dlg-tabs"><button class="btn small" data-overlay="rain" data-i="rainTabFc"></button><button class="btn small" data-overlay="radar" data-i="rainTabRadar"></button><button class="btn small" data-overlay="rainAccu" data-i="rainTabAccu"></button></span>
+    <button class="btn small" data-close aria-label="close">✕</button>
+  </div>
+  <iframe id="windyFrame" title="Windy" referrerpolicy="no-referrer"></iframe>
+  <p class="note"><span data-i="rainNote"></span> <a href="https://www.windy.com/?rain,13.75,100.55,9" target="_blank" rel="noopener">Windy.com ↗</a></p>
+</dialog>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
