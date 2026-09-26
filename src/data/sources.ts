@@ -3,7 +3,11 @@
 // `snapshot: true` so the UI can label it. Snapshots keep the raw API schema, so
 // live and snapshot data go through the same parser.
 
-import { TW as TW_BASE, bkkMs, situation, slot, slotMs, type DayFile, type Meta } from './history.ts';
+import {
+  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
+  type DayFile, type EventBy, type FloodEvent, type Meta,
+} from './history.ts';
+export type { FloodEvent };
 export { bkkMs };
 
 export type Level = 0 | 1 | 2 | 3; // ปกติ / เฝ้าระวัง / เสี่ยงสูง / ท่วมหนัก
@@ -210,7 +214,7 @@ export const fetchReports = () =>
   );
 
 // ---------- History (recorded every 10 min by netlify/functions/collect.mts) ----------
-export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report> }
+export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report>; events: Result<FloodEvent>; traffic: number | null }
 const WINDOW = 3600_000; // a reading counts as "current" at time T for up to an hour
 
 export async function loadHistory(at: number): Promise<Snapshot> {
@@ -261,8 +265,22 @@ export async function loadHistory(at: number): Promise<Snapshot> {
     .filter(([, r]) => Date.parse(r[2]) <= at && Date.parse(r[2]) > at - DAY)
     .map(([id, [lng, lat, time, state]]) => ({ id, lng, lat, time, state, text: '', address: '', photo: '' }));
 
+  const events: FloodEvent[] = [];
+  const seen = new Set<string>();
+  for (const [, f] of files) for (const [id, [lng, lat, title, titleEn, text, start, stop, by, impassable, image]] of Object.entries(f.events ?? {})) {
+    if (seen.has(id) || !isActive({ start, stop }, at)) continue;
+    seen.add(id);
+    events.push({ id, lng, lat, title, titleEn, text, start, stop, by: by as EventBy, impassable: impassable === 1, image });
+  }
+  const tb = files.flatMap(([day, f]) => Object.entries(f.traffic ?? {}).map(([b, v]) => ({ ms: slotMs(day, b), v })))
+    .filter((x) => x.ms <= at && x.ms > at - WINDOW).sort((a, b) => a.ms - b.ms).at(-1);
+
   const res = <T>(items: T[]): Result<T> => ({ items, snapshot: false, stale: items.length === 0 });
-  return { road: res(road), canals: res(canals), rain: res(rain), reports: { items: reports, snapshot: false } };
+  const hasEvents = files.some(([, f]) => f.events);
+  return {
+    road: res(road), canals: res(canals), rain: res(rain), reports: { items: reports, snapshot: false },
+    events: { items: events, snapshot: false, stale: !hasEvents }, traffic: tb?.v ?? null,
+  };
 }
 
 // ---------- Traffic cameras (Longdo Traffic list; images/streams by iTIC Foundation & DOH) ----------
@@ -277,4 +295,21 @@ export async function fetchCameras(): Promise<Camera[]> {
     .map((c) => ({ id: String(c.camid), title: String(c.title).replace(/\s+/g, ' ').trim(), org: String(c.organization ?? ''), lng: Number(c.longitude), lat: Number(c.latitude) }))
     // Bangkok and its edges
     .filter((c) => c.id && c.lat > 13.45 && c.lat < 14.0 && c.lng > 100.28 && c.lng < 100.98);
+}
+
+// ---------- Longdo Event flood incidents + Longdo Bangkok traffic index (public feeds, CORS enabled) ----------
+export async function fetchEvents(): Promise<Result<FloodEvent>> {
+  try {
+    const now = Date.now();
+    return { items: parseLongdoEvents(await getJson(LONGDO_EVENTS)).filter((e) => isActive(e, now)), snapshot: false };
+  } catch (e) {
+    console.warn('Longdo events unavailable', e);
+    return { items: [], snapshot: false, stale: true, error: String(e) };
+  }
+}
+
+/** Bangkok-wide congestion index 0–10 (Longdo Traffic), or null. */
+export async function fetchTrafficIndex(): Promise<number | null> {
+  const d = await getJson(LONGDO_TRAFFIC_INDEX).catch(() => null);
+  return d && Number.isFinite(Number(d.index)) ? Number(d.index) : null;
 }

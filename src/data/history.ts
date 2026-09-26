@@ -17,10 +17,13 @@ export interface DayFile {
   canal: Record<string, Record<string, number>>; // water level, m MSL
   rain: Record<string, Record<string, number>>; // 24h accumulated rain, mm
   reports: Record<string, [lng: number, lat: number, iso: string, state: string]>;
+  // Longdo/iTIC flood incidents, listed under every day they were active. Optional: older files lack it.
+  events?: Record<string, [lng: number, lat: number, title: string, titleEn: string, text: string, start: string, stop: string, by: string, impassable: 0 | 1, image: string]>;
+  traffic?: Record<string, number>; // bucket -> Longdo Bangkok traffic index (0–10)
 }
 
 export const emptyMeta = (): Meta => ({ road: {}, canal: {}, rain: {} });
-export const emptyDay = (): DayFile => ({ road: {}, canal: {}, rain: {}, reports: {} });
+export const emptyDay = (): DayFile => ({ road: {}, canal: {}, rain: {}, reports: {}, events: {} });
 export const HISTORY_DAYS = 7;
 
 const BKK_OFFSET = 7 * 3600 * 1000;
@@ -45,6 +48,8 @@ export function mergeDay(base: DayFile, add: DayFile) {
     for (const [b, vals] of Object.entries(add[k])) base[k][b] = { ...base[k][b], ...vals };
   }
   Object.assign(base.reports, add.reports);
+  base.events = { ...base.events, ...add.events };
+  base.traffic = { ...base.traffic, ...add.traffic };
   return base;
 }
 
@@ -68,6 +73,17 @@ export class DayBuilder {
   rain(ms: number, id: string, mm: number) {
     const { day, bucket } = slot(ms);
     (this.get(day).rain[bucket] ??= {})[id] = mm;
+  }
+  traffic(ms: number, index: number) {
+    const { day, bucket } = slot(ms);
+    (this.get(day).traffic ??= {})[bucket] = index;
+  }
+  /** Record an incident under each Bangkok day it overlaps, up to `now`. */
+  event(e: FloodEvent, now: number) {
+    const last = slot(Math.min(Date.parse(e.stop), now)).day;
+    for (let t = Date.parse(e.start), day = slot(t).day; day <= last; t += 86400_000, day = slot(t).day) {
+      (this.get(day).events ??= {})[e.id] = [e.lng, e.lat, e.title, e.titleEn, e.text, e.start, e.stop, e.by, e.impassable ? 1 : 0, e.image];
+    }
   }
   report(id: string, lng: number, lat: number, iso: string, state: string) {
     this.get(slot(Date.parse(iso)).day).reports[id] = [lng, lat, iso, state];
@@ -128,3 +144,40 @@ export function parseBmaHome(html: string): { name: string; cm: number }[] {
     .filter((f) => f.length >= 5 && Number.isFinite(Number(f[4])))
     .map((f) => ({ name: f[2].replace(/\s+/g, ' ').trim(), cm: Number(f[4]) }));
 }
+
+// ---------- Longdo Event (flood incidents curated by DOH / iTIC staff; also shown on live.iticfoundation.org) ----------
+export const LONGDO_EVENTS = 'https://event.longdo.com/feed/json';
+export const LONGDO_TRAFFIC_INDEX = 'https://traffic.longdo.com/api/json/traffic/index';
+export type EventBy = 'doh' | 'itic' | 'public';
+export interface FloodEvent {
+  id: string; title: string; titleEn: string; text: string; lng: number; lat: number;
+  start: string; stop: string; // ISO
+  by: EventBy; impassable: boolean; image: string;
+}
+interface LongdoEventRaw {
+  eid: string; title: string; title_en: string; description: string; latitude: string; longitude: string;
+  start: string; stop: string; contributor: string; icon: string; images?: string[];
+}
+// "รถเล็กผ่านไม่ได้", "ท่วมทุกช่องทาง", "รถเก๋งห้ามเข้า" (also the common typo "ห้าเข้า")…
+const IMPASSABLE = /รถเล็ก\S*\s*(ผ่านไม่ได้|ไม่ควรผ่าน|แนะ\S*หลีกเลี่ยง|หลีกเลี่ยง|ไม่สามารถ)|ทุกช่องทาง|ผ่านไม่ได้|ห้ามเข้า|ห้าเข้า/;
+/** Drop "รายงานโดย <name>" so reporters' names aren't republished. */
+export const stripReporter = (s: string) => s.replace(/\s*(รายงานโดย|แจ้งโดย|Report(ed)? by)\s.*$/i, '').trim();
+const inBangkok = (lng: number, lat: number) => lat > 13.45 && lat < 14.0 && lng > 100.28 && lng < 100.98;
+
+export function parseLongdoEvents(raw: LongdoEventRaw[]): FloodEvent[] {
+  return raw
+    .filter((x) => x.icon === 'flood' || /ท่วม/.test(x.title))
+    .map((x) => {
+      const text = stripReporter(String(x.description ?? ''));
+      const by: EventBy = x.contributor === 'DOH Admin' ? 'doh' : /^itic\./.test(x.contributor) ? 'itic' : 'public';
+      const img = (x.images ?? []).find((u) => /^https:\/\//.test(u)) ?? '';
+      return {
+        id: String(x.eid), title: stripReporter(String(x.title)), titleEn: stripReporter(String(x.title_en ?? '')), text,
+        lng: Number(x.longitude), lat: Number(x.latitude),
+        start: new Date(bkkMs(x.start)).toISOString(), stop: new Date(bkkMs(x.stop)).toISOString(),
+        by, impassable: IMPASSABLE.test(`${x.title} ${x.description}`), image: img,
+      };
+    })
+    .filter((e) => Number.isFinite(e.lng) && Number.isFinite(e.lat) && inBangkok(e.lng, e.lat) && e.start <= e.stop);
+}
+export const isActive = (e: { start: string; stop: string }, at: number) => Date.parse(e.start) <= at && at <= Date.parse(e.stop);

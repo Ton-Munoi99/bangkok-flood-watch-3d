@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, situation, slot, slotMs } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseLongdoEvents, situation, slot, slotMs } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -42,3 +42,17 @@ console.log('history ok');
 const home = "x var datatableflood = [\n ['จตุจักร','Chatuchak','ซ.เสนานิคม','ซ.เสนานิคม','63.3','ขาเข้า'],\n ['บางนา','Bang Na','ถ.O\\'Neil  ช่วง 2','s','5.7','x'],\n ['a','b','bad','s','n/a','x']\n];";
 assert.deepStrictEqual(parseBmaHome(home), [{ name: 'ซ.เสนานิคม', cm: 63.3 }, { name: "ถ.O'Neil ช่วง 2", cm: 5.7 }]);
 console.log('bma home ok');
+
+// Longdo events: flood filter, Bangkok bbox, reporter names stripped, passability, multi-day listing.
+const evs = parseLongdoEvents([
+  { eid: '1', title: 'น้ำท่วม รามอินทรา 8', title_en: 'Flood', description: 'น้ำท่วมสูงรถเก๋งห้าเข้า รายงานโดย Somchai Jaidee', latitude: '13.85', longitude: '100.61', start: '2026-09-25 22:00:00', stop: '2026-09-26 02:00:00', contributor: 'itic_user', icon: 'flood' },
+  { eid: '2', title: 'รถเสีย', title_en: '', description: '', latitude: '13.7', longitude: '100.5', start: '2026-09-26 10:00:00', stop: '2026-09-26 11:00:00', contributor: 'DOH Admin', icon: 'carbreakdown' },
+  { eid: '3', title: 'น้ำท่วม สระแก้ว', title_en: '', description: 'รถผ่านไม่ได้', latitude: '13.8', longitude: '102.0', start: '2026-09-26 10:00:00', stop: '2026-09-26 11:00:00', contributor: 'DOH Admin', icon: 'flood' },
+] as never);
+assert.strictEqual(evs.length, 1);
+assert.strictEqual(evs[0].text, 'น้ำท่วมสูงรถเก๋งห้าเข้า');
+assert.ok(evs[0].impassable && evs[0].by === 'public');
+const eb = new DayBuilder();
+eb.event(evs[0], Date.parse('2026-09-26T12:00:00+07:00'));
+assert.deepStrictEqual([...eb.days.keys()], ['2026-09-25', '2026-09-26']);
+console.log('events ok');

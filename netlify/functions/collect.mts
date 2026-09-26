@@ -1,9 +1,9 @@
 // Every 10 minutes: record Bangkok flood readings into Netlify Blobs (one file per day, 7 days kept).
 // Runs on Netlify's (overseas) servers, so it uses only sources reachable from abroad:
-// ThaiWater (incl. its relay of BMA road-flood sensors) and Traffy. weather.bangkok.go.th blocks non-Thai IPs.
+// ThaiWater (incl. its relay of BMA road-flood sensors), Traffy and Longdo (events, traffic index). weather.bangkok.go.th blocks non-Thai IPs.
 import { getStore } from '@netlify/blobs';
 import {
-  DayBuilder, HISTORY_DAYS, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports,
+  DayBuilder, HISTORY_DAYS, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
   emptyDay, emptyMeta, mergeDay, slot, type DayFile, type Meta,
 } from '../../src/data/history.ts';
 
@@ -25,6 +25,9 @@ export default async () => {
     getJson(`${TW}/waterlevel_load?province_code=10`).then((d) => addCanal(meta, b, d.waterlevel_data.data)),
     getJson(`${TW}/rain_24h?province_code=10`).then((d) => addRain(meta, b, d.data)),
     getJson(`${TRAFFY}?limit=500`).then((d) => addReports(b, d.results)),
+    // The feed also carries recent expired events, so this backfills itself.
+    getJson(LONGDO_EVENTS).then((d) => parseLongdoEvents(d).forEach((e) => b.event(e, now))),
+    getJson(LONGDO_TRAFFIC_INDEX).then((d) => Number.isFinite(d.index) && b.traffic(Number(d.time) * 1000, Number(d.index))),
   ]);
   for (const r of results) if (r.status === 'rejected') console.error('source failed:', r.reason);
 

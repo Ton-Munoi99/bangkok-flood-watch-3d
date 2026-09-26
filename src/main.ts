@@ -7,12 +7,13 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs, fetchCameras, longdoCameraUrl,
+  fetchEvents, fetchTrafficIndex, type FloodEvent,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
 // ---------------- i18n ----------------
 type Lang = 'th' | 'en';
-interface Summary { pts: number; districts: number; heavy: number; worst: string; rain: string; reports: number }
+interface Summary { pts: number; districts: number; heavy: number; worst: string; rain: string; reports: number; events: number; impassable: number }
 const T = {
   th: {
     riskTitle: 'ดัชนีความเสี่ยงน้ำท่วมรวม', waterReal: 'น้ำท่วมถนนสูงสุด', waterSim: 'ระดับน้ำจำลอง',
@@ -33,6 +34,10 @@ const T = {
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
+    lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
+    impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
+    byLabel: { doh: 'เจ้าหน้าที่กรมทางหลวง', itic: 'เจ้าหน้าที่ iTIC', public: 'ผู้ใช้แอป iTIC' } as Record<string, string>, events: 'เหตุการณ์',
+    srcEvents: 'เหตุการณ์: iTIC / Longdo Event', trafficIdx: 'ดัชนีจราจร', trafficTipIdx: 'ดัชนีการจราจร กทม. 0–10 จาก Longdo Traffic (ยิ่งสูงยิ่งติด)',
     lyCams: 'กล้องจราจร (Longdo/iTIC)', camTitle: 'กล้องจราจร', camOwner: 'เจ้าของกล้อง', camOpen: 'ดูภาพสดที่ Longdo Traffic',
     camNear: (name: string, m: number) => `📷 กล้องใกล้จุดนี้ (${m} ม.): ${name}`,
     traffyList: 'ประชาชนแจ้งล่าสุด (Traffy Fondue)', traffyEmpty: 'ไม่มีเรื่องแจ้งน้ำท่วมใน 24 ชม.', traffyOpen: 'ดูเรื่องนี้ใน Traffy Fondue', traffyMore: (n: number) => `ดูอีก ${n} เรื่อง`,
@@ -49,7 +54,8 @@ const T = {
       s.pts === 0
         ? 'เซนเซอร์ของ กทม. ไม่พบน้ำท่วมขังบนถนน'
         : `มีน้ำท่วมขังถนน <b>${s.pts} จุด</b> ใน <b>${s.districts} เขต</b> · ท่วมหนัก (≥20 ซม.) <b>${s.heavy} จุด</b> · หนักสุดที่ ${s.worst}`
-          + (s.rain ? ` · ฝนสะสมสูงสุด ${s.rain}` : '') + (s.reports ? ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${s.reports} เรื่อง</b> ใน 24 ชม.` : ''),
+          + (s.rain ? ` · ฝนสะสมสูงสุด ${s.rain}` : '') + (s.reports ? ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${s.reports} เรื่อง</b> ใน 24 ชม.` : '')
+          + (s.events ? ` · เหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย (iTIC/Longdo) <b>${s.events} จุด</b>${s.impassable ? `, รถเล็กไม่ควรผ่าน <b>${s.impassable} จุด</b>` : ''}` : ''),
     srcRoad: 'น้ำท่วมถนน: สำนักการระบายน้ำ กทม.', srcCanal: 'ระดับน้ำ: คลังข้อมูลน้ำแห่งชาติ (สสน.)',
     srcRain: 'ฝน: คลังข้อมูลน้ำแห่งชาติ (สสน.)', srcTraffy: 'แจ้งเหตุ: Traffy Fondue',
     srcSim: 'ความสูงพื้นที่รายเขต: ข้อมูลจำลองจากต้นแบบ (ไม่ใช่ DEM จริง)',
@@ -73,6 +79,10 @@ const T = {
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
+    lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
+    impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
+    byLabel: { doh: 'DOH staff', itic: 'iTIC staff', public: 'iTIC app user' } as Record<string, string>, events: 'incidents',
+    srcEvents: 'Incidents: iTIC / Longdo Event', trafficIdx: 'Traffic index', trafficTipIdx: 'Bangkok traffic index 0–10 from Longdo Traffic (higher = worse)',
     lyCams: 'Traffic cameras (Longdo/iTIC)', camTitle: 'Traffic camera', camOwner: 'Owner', camOpen: 'Live view on Longdo Traffic',
     camNear: (name: string, m: number) => `📷 Nearest camera (${m} m): ${name}`,
     traffyList: 'Latest citizen reports (Traffy Fondue)', traffyEmpty: 'No flood reports in the last 24 h', traffyOpen: 'Open in Traffy Fondue', traffyMore: (n: number) => `Show ${n} more`,
@@ -89,7 +99,8 @@ const T = {
       s.pts === 0
         ? 'BMA sensors report no road flooding.'
         : `Road flooding at <b>${s.pts} points</b> in <b>${s.districts} districts</b> · severe (≥20 cm) <b>${s.heavy}</b> · worst at ${s.worst}`
-          + (s.rain ? ` · max rainfall ${s.rain}` : '') + (s.reports ? ` · <b>${s.reports}</b> citizen flood reports on Traffy in 24h` : ''),
+          + (s.rain ? ` · max rainfall ${s.rain}` : '') + (s.reports ? ` · <b>${s.reports}</b> citizen flood reports on Traffy in 24h` : '')
+          + (s.events ? ` · <b>${s.events}</b> active flood incidents (iTIC/Longdo)${s.impassable ? `, <b>${s.impassable}</b> impassable for small cars` : ''}` : ''),
     srcRoad: 'Road flooding: BMA Drainage & Sewerage Dept.', srcCanal: 'Water level: Thai National Water Data (HII)',
     srcRain: 'Rain: Thai National Water Data (HII)', srcTraffy: 'Reports: Traffy Fondue',
     srcSim: 'District ground heights: simulated prototype data (not a real DEM)',
@@ -123,7 +134,7 @@ const inMultiPolygon = (p: number[], mp: Ring[][]) => mp.some(([outer, ...holes]
 interface District {
   code: string; th: string; en: string; area: number; elev: number;
   geom: Ring[][]; bbox: [number, number, number, number];
-  road: RoadFlood[]; reports: number; rainMax: Rain | null; level: Level | -1; simLevel: Level;
+  road: RoadFlood[]; reports: number; events: number; impassable: number; rainMax: Rain | null; level: Level | -1; simLevel: Level;
 }
 let districts: District[] = [];
 const dName = (d: District) => (lang === 'th' ? d.th : d.en);
@@ -139,6 +150,8 @@ let road: Result<RoadFlood> = { items: [], snapshot: false };
 let canals: Result<Canal> = { items: [], snapshot: false };
 let rain: Result<Rain> = { items: [], snapshot: false };
 let reports: Result<Report> = { items: [], snapshot: false };
+let events: Result<FloodEvent> = { items: [], snapshot: false };
+let trafficIdx: number | null = null;
 let historyAt: number | null = null; // null = live
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
 let cameras: Camera[] = [];
@@ -220,7 +233,7 @@ map.on('load', async () => {
       code: f.properties.amp_code, th: f.properties.amp_th, en: f.properties.amp_en,
       area: f.properties.area_sqkm, elev: elevByEn.get(f.properties.amp_en) ?? 0, geom,
       bbox: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
-      road: [], reports: 0, rainMax: null, level: -1, simLevel: 0,
+      road: [], reports: 0, events: 0, impassable: 0, rainMax: null, level: -1, simLevel: 0,
     } as District;
   });
   map.addSource('districts', {
@@ -253,6 +266,7 @@ map.on('load', async () => {
   map.addSource('rain', { type: 'geojson', data: empty, attribution: tw });
   map.addSource('reports', { type: 'geojson', data: empty, attribution: 'แจ้งเหตุ: <a href="https://share.traffy.in.th/teamchadchart">Traffy Fondue</a>' });
   map.addSource('canal', { type: 'geojson', data: empty, attribution: tw });
+  map.addSource('events', { type: 'geojson', data: empty, attribution: 'เหตุการณ์: <a href="https://live.iticfoundation.org/">iTIC</a> / <a href="https://event.longdo.com/">Longdo Event</a> / กรมทางหลวง' });
   map.addSource('cameras', { type: 'geojson', data: empty, attribution: 'กล้อง: <a href="https://traffic.longdo.com/cameralist">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง' });
   map.addSource('road', { type: 'geojson', data: empty, attribution: 'น้ำท่วมถนน: <a href="https://weather.bangkok.go.th/flood/">สำนักการระบายน้ำ กทม.</a>' });
 
@@ -277,6 +291,12 @@ map.on('load', async () => {
     },
   });
   map.addImage('cam-icon', cameraIcon(), { pixelRatio: 1.4 });
+  map.addImage('ev-icon', eventIcon('#f5924b'), { pixelRatio: 1.4 });
+  map.addImage('ev-icon-x', eventIcon('#f2495c'), { pixelRatio: 1.4 });
+  map.addLayer({
+    id: 'events', type: 'symbol', source: 'events',
+    layout: { 'icon-image': ['case', ['get', 'x'], 'ev-icon-x', 'ev-icon'], 'icon-allow-overlap': true, 'symbol-sort-key': ['case', ['get', 'x'], 1, 0] },
+  });
   map.addLayer({
     id: 'cameras', type: 'symbol', source: 'cameras', layout: { visibility: 'none', 'icon-image': 'cam-icon', 'icon-allow-overlap': true },
   });
@@ -299,7 +319,7 @@ map.on('load', async () => {
   });
 
   // Click priority: most specific layer first.
-  const clickable = ['road', 'canal', 'cameras', 'reports', 'rain', 'district-fill'];
+  const clickable = ['road', 'events', 'canal', 'cameras', 'reports', 'rain', 'district-fill'];
   map.on('click', (e) => {
     // A few pixels of slack so small markers are easy to hit (especially by finger).
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
@@ -311,6 +331,7 @@ map.on('load', async () => {
     else if (f.layer.id === 'reports') showReport(reports.items[i]);
     else if (f.layer.id === 'rain') showRain(rain.items[i]);
     else if (f.layer.id === 'cameras') showCamera(cameras[i]);
+    else if (f.layer.id === 'events') showEvent(events.items[i]);
     else showDistrict(districts.find((d) => d.code === f.id)!, e.lngLat);
   });
   for (const l of clickable) {
@@ -318,6 +339,8 @@ map.on('load', async () => {
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   }
 
+  // Many sources = a long credit line; on phones start it folded behind the ⓘ button (still one tap away).
+  if (matchMedia('(max-width: 820px)').matches) document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
   wireControls();
   applyLang();
   // Camera list is static-ish and optional: load once, never block the page on it.
@@ -330,7 +353,7 @@ map.on('load', async () => {
 });
 
 // ---------------- data refresh ----------------
-const fetchAll = () => [fetchRoadFlood(), fetchCanals(), fetchRain(), fetchReports()] as const;
+const fetchAll = () => [fetchRoadFlood(), fetchCanals(), fetchRain(), fetchReports(), fetchEvents(), fetchTrafficIndex()] as const;
 // Start downloading data immediately — no need to wait for map tiles.
 const firstFetch = fetchAll();
 
@@ -339,7 +362,7 @@ async function refresh(pending = fetchAll()) {
   $('refresh').setAttribute('disabled', '');
   // Show each source as soon as it arrives instead of waiting for the slowest one.
   // Road decides the "all clear" wording, so the page stays in its loading state until road is in.
-  const [pRoad, pCanal, pRain, pReports] = pending;
+  const [pRoad, pCanal, pRain, pReports, pEvents, pTraffic] = pending;
   const use = <T>(p: Promise<T>, set: (v: T) => void) => p.then((v) => {
     if (historyAt != null) return; // user switched to history while this was loading
     set(v);
@@ -350,6 +373,8 @@ async function refresh(pending = fetchAll()) {
     use(pCanal, (v) => (canals = v)),
     use(pRain, (v) => (rain = v)),
     use(pReports, (v) => (reports = v)),
+    use(pEvents, (v) => (events = v)),
+    use(pTraffic, (v) => (trafficIdx = v)),
   ]);
   $('refresh').removeAttribute('disabled');
 }
@@ -358,7 +383,7 @@ async function showHistory(at: number) {
   historyAt = at;
   $('refresh').setAttribute('disabled', '');
   try {
-    ({ road, canals, rain, reports } = await loadHistory(at));
+    ({ road, canals, rain, reports, events, traffic: trafficIdx } = await loadHistory(at));
     loaded = true;
     $('histError').hidden = true;
   } catch (e) {
@@ -370,20 +395,24 @@ async function showHistory(at: number) {
 }
 
 function apply() {
-  for (const d of districts) Object.assign(d, { road: [], reports: 0, rainMax: null });
+  for (const d of districts) Object.assign(d, { road: [], reports: 0, events: 0, impassable: 0, rainMax: null });
   for (const r of road.items) findDistrict(r.lng, r.lat)?.road.push(r);
   for (const r of reports.items) { const d = findDistrict(r.lng, r.lat); if (d) d.reports++; }
+  for (const e of events.items) { const d = findDistrict(e.lng, e.lat); if (d) { d.events++; if (e.impassable) d.impassable++; } }
   for (const r of rain.items) { const d = findDistrict(r.lng, r.lat); if (d && (!d.rainMax || r.mm > d.rainMax.mm)) d.rainMax = r; }
   for (const d of districts) {
     const lvl = Math.max(0, ...d.road.map((r) => r.level)) as Level;
     // ponytail: citizen reports can only raise a quiet district to "watch"; sensors decide anything higher.
-    d.level = d.road.length === 0 && d.reports < 3 ? -1 : lvl === 0 && d.reports >= 3 ? 1 : lvl;
+    // Staff-verified "impassable for small cars" counts as high risk; any other incident or 3+ citizen reports as watch.
+    const other: Level = d.impassable ? 2 : d.events || d.reports >= 3 ? 1 : 0;
+    d.level = d.road.length === 0 && other === 0 ? -1 : (Math.max(lvl, other) as Level);
   }
 
   setData('road', fc(road.items, (r) => [r.lng, r.lat], (r) => ({ cm: r.cm, level: r.level })));
   setData('canal', fc(canals.items, (c) => [c.lng, c.lat], (c) => ({ situation: c.situation })));
   setData('rain', fc(rain.items, (r) => [r.lng, r.lat], (r) => ({ mm: r.mm })));
   setData('reports', fc(reports.items, (r) => [r.lng, r.lat], () => ({})));
+  setData('events', fc(events.items, (e) => [e.lng, e.lat], (e) => ({ x: e.impassable })));
   render();
 }
 
@@ -450,7 +479,8 @@ function render() {
 
   // Summary + sidebar
   const heavy = flooded.filter((r) => r.level === 3);
-  const affected = districts.filter((d) => maxCm(d) > 0 || d.reports >= 3).sort((a, b) => maxCm(b) - maxCm(a) || b.reports - a.reports);
+  const affected = districts.filter((d) => maxCm(d) > 0 || d.reports >= 3 || d.events > 0)
+    .sort((a, b) => maxCm(b) - maxCm(a) || b.impassable - a.impassable || b.events - a.events || b.reports - a.reports);
   const rainTxt = topRain ? `<b>${topRain.mm} mm</b> (${esc(name(topRain))})` : '';
   $('summary').innerHTML = noRoad ? L.summaryNoRoad(rainTxt, reports.items.length) : L.summary({
     pts: flooded.length,
@@ -459,10 +489,28 @@ function render() {
     worst: worst ? `<b>${esc(name(worst))}</b>${worstD ? ` (${esc(dName(worstD))})` : ''} <b>${worst.cm} cm</b>` : '',
     rain: rainTxt,
     reports: reports.items.length,
+    events: events.items.length,
+    impassable: events.items.filter((e) => e.impassable).length,
   });
+  const tIdx = $('trafficIdx');
+  tIdx.hidden = trafficIdx == null;
+  if (trafficIdx != null) {
+    tIdx.textContent = `${L.trafficIdx} ${trafficIdx.toFixed(1)}/10`;
+    tIdx.style.color = trafficIdx >= 7 ? LEVEL_COLORS[3] : trafficIdx >= 4 ? LEVEL_COLORS[2] : LEVEL_COLORS[0];
+  }
 
   const overBank = canals.items.filter((c) => c.bank != null && c.wl >= c.bank);
-  let html = `<h4>${L.alerts} (${heavy.length + overBank.length})</h4>`;
+  const evName = (e: FloodEvent) => (lang === 'th' ? e.title : e.titleEn || e.title);
+  const eventItem = (e: FloodEvent, cls = '') => {
+    const d = findDistrict(e.lng, e.lat);
+    return `<button class="item ${cls}" style="--c:${e.impassable ? LEVEL_COLORS[3] : LEVEL_COLORS[2]}" data-event="${events.items.indexOf(e)}">
+      <div class="t"><span>${esc(evName(e))}</span>${e.impassable ? `<span>🚫</span>` : ''}</div>
+      <div class="s">${[bkkTime(e.start), d && esc(dName(d)), L.byLabel[e.by]].filter(Boolean).join(' · ')}</div></button>`;
+  };
+  const impassable = events.items.filter((e) => e.impassable).sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
+  let html = '';
+  if (impassable.length) html += `<h4>${L.impassable} (${impassable.length})</h4>` + impassable.map((e) => eventItem(e, 'alert')).join('');
+  html += `<h4>${L.alerts} (${heavy.length + overBank.length})</h4>`;
   if (heavy.length + overBank.length === 0) html += `<div class="empty">${L.noAlerts}</div>`;
   const alertItems = [...overBank.map((c) => `<button class="item alert" data-canal="${canals.items.indexOf(c)}">
       <div class="t"><span>${esc(name(c))}</span><span>+${(c.wl - c.bank!).toFixed(2)} m</span></div>
@@ -482,8 +530,14 @@ function render() {
     const lvl = simOn ? d.simLevel : Math.max(d.level, 0);
     return `<button class="item" style="--c:${LEVEL_COLORS[lvl]}" data-district="${d.code}">
       <div class="t"><span>${esc(dName(d))}</span><span>${max ? `${max} cm` : lvlName(lvl)}</span></div>
-      <div class="s">${d.road.filter((r) => r.cm > 0).length} ${L.pts} · ${d.reports} ${L.reports}${d.rainMax ? ` · ☔ ${d.rainMax.mm} mm` : ''}</div></button>`;
+      <div class="s">${d.road.filter((r) => r.cm > 0).length} ${L.pts} · ${d.events} ${L.events}${d.impassable ? ' 🚫' : ''} · ${d.reports} ${L.reports}${d.rainMax ? ` · ☔ ${d.rainMax.mm} mm` : ''}</div></button>`;
   }).join('');
+
+  const latestEvents = [...events.items].sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
+  html += `<h4>📍 ${L.eventsList} (${latestEvents.length})</h4>`;
+  if (!latestEvents.length) html += `<div class="empty">${events.stale ? L.unavailable : L.eventsEmpty}</div>`;
+  html += latestEvents.slice(0, 10).map((e) => eventItem(e)).join('');
+  if (latestEvents.length > 10) html += `<details><summary class="empty">${L.traffyMore(latestEvents.length - 10)}</summary>${latestEvents.slice(10).map((e) => eventItem(e)).join('')}</details>`;
 
   // Latest citizen reports — clickable so the purple dots can be found from the list too.
   const latestReports = [...reports.items].sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
@@ -507,7 +561,7 @@ function render() {
   $('sideBody').innerHTML = html;
 
   // Source status (live vs snapshot) — snapshot data must always be labelled.
-  const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports]];
+  const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports], [L.srcEvents, events]];
   const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? L.snapshot : r === road && roadVia ? `${L.live} (${L.via})` : L.live;
   $('sources').innerHTML = srcs.map(([n, r]) => `<div>${esc(n)} — <span class="${r.snapshot || r.stale ? 'snap' : 'live'}">● ${status(r)}</span></div>`).join('')
     + `<div>${esc(L.srcSim)}</div>`;
@@ -540,6 +594,26 @@ function nearCameraRow(p: { lng: number; lat: number }) {
   let best: Camera | undefined, bestM = 1001;
   for (const c of cameras) { const m = metres(p, c); if (m < bestM) { best = c; bestM = m; } }
   return best ? `<div class="r"><a href="${esc(longdoCameraUrl(best.id))}" target="_blank" rel="noopener">${esc(t().camNear(best.title, bestM))} ↗</a></div>` : '';
+}
+/** Warning-diamond marker for Longdo/iTIC incidents (orange; red = impassable for small cars). */
+function eventIcon(color: string) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 28;
+  const g = c.getContext('2d')!;
+  g.beginPath(); g.moveTo(14, 1); g.lineTo(27, 14); g.lineTo(14, 27); g.lineTo(1, 14); g.closePath();
+  g.fillStyle = color; g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+  g.fillStyle = '#fff'; g.font = 'bold 16px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', 14, 15);
+  return g.getImageData(0, 0, 28, 28);
+}
+function showEvent(e: FloodEvent, fly = false) {
+  const L = t(), d = findDistrict(e.lng, e.lat);
+  open([e.lng, e.lat], `<b>${esc(lang === 'th' ? e.title : e.titleEn || e.title)}</b>` +
+    (e.impassable ? `<span class="tag" style="color:${LEVEL_COLORS[3]}">🚫 ${L.impassableTag}</span>` : '') +
+    (e.text ? `<div style="margin-top:4px">${esc(e.text)}</div>` : '') +
+    (d ? row(L.districtLbl, esc(dName(d))) : '') +
+    row(L.evWhen, `${bkkTime(e.start)} – ${bkkTime(e.stop)}`) + row(L.evBy, L.byLabel[e.by]) +
+    (e.image ? `<img src="${esc(e.image)}" alt="" loading="lazy">` : '') +
+    `<div class="r"><a href="https://live.iticfoundation.org/" target="_blank" rel="noopener">${L.evOpen} ↗</a></div>` + nearCameraRow(e), fly);
 }
 function showCamera(c: Camera) {
   const L = t();
@@ -607,6 +681,7 @@ function wireControls() {
   toggle('lyRain', (on) => setVis(['rain'], on));
   toggle('lyReports', (on) => setVis(['reports'], on));
   toggle('lyCams', (on) => setVis(['cameras'], on));
+  toggle('lyEvents', (on) => setVis(['events'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));
   toggle('lyBuild', (on) => setVis(['buildings-3d'], on));
   toggle('lySat', (on) => setVis(['satellite'], on));
@@ -678,6 +753,7 @@ function wireControls() {
     if (b.dataset.road) showRoad(road.items[+b.dataset.road], true);
     else if (b.dataset.canal) showCanal(canals.items[+b.dataset.canal], true);
     else if (b.dataset.report) showReport(reports.items[+b.dataset.report], true);
+    else if (b.dataset.event) showEvent(events.items[+b.dataset.event], true);
     else if (b.dataset.district) showDistrict(districts.find((d) => d.code === b.dataset.district)!);
     $('sidebar').classList.remove('open');
   });
@@ -701,6 +777,7 @@ function applyLang() {
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
   $('trafficBtn').title = L.trafficTip;
+  $('trafficIdx').title = L.trafficTipIdx;
   for (const id of ['rotL', 'rotR', 'spinBtn'] as const) {
     document.getElementById(id)?.setAttribute('aria-label', L[id]);
     document.getElementById(id)?.setAttribute('title', L[id]);
