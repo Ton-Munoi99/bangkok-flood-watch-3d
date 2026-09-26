@@ -6,8 +6,8 @@ import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs,
-  type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs, fetchCameras, longdoCameraUrl,
+  type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
 // ---------------- i18n ----------------
@@ -33,6 +33,8 @@ const T = {
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
+    lyCams: 'กล้องจราจร (Longdo/iTIC)', camTitle: 'กล้องจราจร', camOwner: 'เจ้าของกล้อง', camOpen: 'ดูภาพสดที่ Longdo Traffic',
+    camNear: (name: string, m: number) => `📷 กล้องใกล้จุดนี้ (${m} ม.): ${name}`,
     traffyList: 'ประชาชนแจ้งล่าสุด (Traffy Fondue)', traffyEmpty: 'ไม่มีเรื่องแจ้งน้ำท่วมใน 24 ชม.', traffyOpen: 'ดูเรื่องนี้ใน Traffy Fondue', traffyMore: (n: number) => `ดูอีก ${n} เรื่อง`,
     noAlerts: 'ไม่มีจุดท่วมหนักในขณะนี้', loading: 'กำลังโหลดข้อมูลล่าสุด…', more: (n: number) => `ดูอีก ${n} จุด`, noDistricts: 'ยังไม่มีเขตที่มีน้ำท่วมขัง',
     pts: 'จุดท่วม', reports: 'แจ้งเหตุ', since: 'ท่วมตั้งแต่', max: 'สูงสุด', updated: 'อัปเดต',
@@ -71,6 +73,8 @@ const T = {
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
+    lyCams: 'Traffic cameras (Longdo/iTIC)', camTitle: 'Traffic camera', camOwner: 'Owner', camOpen: 'Live view on Longdo Traffic',
+    camNear: (name: string, m: number) => `📷 Nearest camera (${m} m): ${name}`,
     traffyList: 'Latest citizen reports (Traffy Fondue)', traffyEmpty: 'No flood reports in the last 24 h', traffyOpen: 'Open in Traffy Fondue', traffyMore: (n: number) => `Show ${n} more`,
     noAlerts: 'No severe flooding right now', loading: 'Loading latest data…', more: (n: number) => `Show ${n} more`, noDistricts: 'No district has road flooding',
     pts: 'points', reports: 'reports', since: 'Since', max: 'Max', updated: 'Updated',
@@ -137,6 +141,7 @@ let rain: Result<Rain> = { items: [], snapshot: false };
 let reports: Result<Report> = { items: [], snapshot: false };
 let historyAt: number | null = null; // null = live
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
+let cameras: Camera[] = [];
 let simOn = false;
 let simCm = 60;
 
@@ -248,6 +253,7 @@ map.on('load', async () => {
   map.addSource('rain', { type: 'geojson', data: empty, attribution: tw });
   map.addSource('reports', { type: 'geojson', data: empty, attribution: 'แจ้งเหตุ: <a href="https://share.traffy.in.th/teamchadchart">Traffy Fondue</a>' });
   map.addSource('canal', { type: 'geojson', data: empty, attribution: tw });
+  map.addSource('cameras', { type: 'geojson', data: empty, attribution: 'กล้อง: <a href="https://traffic.longdo.com/cameralist">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง' });
   map.addSource('road', { type: 'geojson', data: empty, attribution: 'น้ำท่วมถนน: <a href="https://weather.bangkok.go.th/flood/">สำนักการระบายน้ำ กทม.</a>' });
 
   map.addLayer({
@@ -270,6 +276,10 @@ map.on('load', async () => {
       'circle-stroke-color': ['match', ['get', 'situation'], 5, SITUATION_COLORS[5], 4, SITUATION_COLORS[4], 3, SITUATION_COLORS[3], SITUATION_COLORS[1]],
     },
   });
+  map.addImage('cam-icon', cameraIcon(), { pixelRatio: 1.4 });
+  map.addLayer({
+    id: 'cameras', type: 'symbol', source: 'cameras', layout: { visibility: 'none', 'icon-image': 'cam-icon', 'icon-allow-overlap': true },
+  });
   map.addLayer({
     id: 'road', type: 'circle', source: 'road',
     layout: { 'circle-sort-key': ['get', 'cm'] },
@@ -289,15 +299,18 @@ map.on('load', async () => {
   });
 
   // Click priority: most specific layer first.
-  const clickable = ['road', 'canal', 'reports', 'rain', 'district-fill'];
+  const clickable = ['road', 'canal', 'cameras', 'reports', 'rain', 'district-fill'];
   map.on('click', (e) => {
-    const f = map.queryRenderedFeatures(e.point, { layers: clickable.filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    // A few pixels of slack so small markers are easy to hit (especially by finger).
+    const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
+    const f = map.queryRenderedFeatures(box, { layers: clickable.filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (!f) return;
     const i = f.properties.i as number;
     if (f.layer.id === 'road') showRoad(road.items[i]);
     else if (f.layer.id === 'canal') showCanal(canals.items[i]);
     else if (f.layer.id === 'reports') showReport(reports.items[i]);
     else if (f.layer.id === 'rain') showRain(rain.items[i]);
+    else if (f.layer.id === 'cameras') showCamera(cameras[i]);
     else showDistrict(districts.find((d) => d.code === f.id)!, e.lngLat);
   });
   for (const l of clickable) {
@@ -307,6 +320,11 @@ map.on('load', async () => {
 
   wireControls();
   applyLang();
+  // Camera list is static-ish and optional: load once, never block the page on it.
+  fetchCameras().then((c) => {
+    cameras = c;
+    setData('cameras', fc(cameras, (x) => [x.lng, x.lat], () => ({})));
+  }).catch((e) => console.warn('camera list unavailable', e));
   await refresh(firstFetch);
   setInterval(() => historyAt == null && refresh(), 5 * 60 * 1000);
 });
@@ -501,6 +519,34 @@ function render() {
   $('mockBanner').textContent = [stale && `${L.staleBanner} ${stale}`, snaps && `${L.mockBanner} ${snaps}`].filter(Boolean).join(' · ');
 }
 
+// ---------------- cameras ----------------
+/** 28×28 (@2x) camera glyph drawn on a canvas — MapLibre's glyph fonts have no emoji. */
+function cameraIcon() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 28;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#0b1322'; g.strokeStyle = '#e8ecf4'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(2, 7, 20, 15, 3); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(22, 12); g.lineTo(27, 9); g.lineTo(27, 20); g.lineTo(22, 17); g.closePath(); g.fillStyle = '#e8ecf4'; g.fill();
+  g.beginPath(); g.arc(12, 14.5, 4, 0, Math.PI * 2); g.fillStyle = '#38bdf8'; g.fill();
+  return g.getImageData(0, 0, 28, 28);
+}
+/** Metres between two points (equirectangular — plenty accurate within a city). */
+const metres = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) => {
+  const k = Math.PI / 180, x = (b.lng - a.lng) * k * Math.cos(((a.lat + b.lat) / 2) * k), y = (b.lat - a.lat) * k;
+  return Math.round(Math.hypot(x, y) * 6_371_000);
+};
+function nearCameraRow(p: { lng: number; lat: number }) {
+  let best: Camera | undefined, bestM = 1001;
+  for (const c of cameras) { const m = metres(p, c); if (m < bestM) { best = c; bestM = m; } }
+  return best ? `<div class="r"><a href="${esc(longdoCameraUrl(best.id))}" target="_blank" rel="noopener">${esc(t().camNear(best.title, bestM))} ↗</a></div>` : '';
+}
+function showCamera(c: Camera) {
+  const L = t();
+  open([c.lng, c.lat], `<b>📷 ${esc(c.title)}</b>` + row(L.camOwner, esc(c.org)) +
+    `<div class="r"><a href="${esc(longdoCameraUrl(c.id))}" target="_blank" rel="noopener">${L.camOpen} ↗</a></div>`);
+}
+
 // ---------------- popups ----------------
 const row = (k: string, v: string) => `<div class="r"><span>${k}</span><span>${v}</span></div>`;
 function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = false) {
@@ -515,7 +561,7 @@ function showRoad(r: RoadFlood, fly = false) {
     row(L.status, `<span style="color:${LEVEL_COLORS[r.level]}">${lvlName(r.level)}</span>`) +
     (d ? row(L.districtLbl, esc(dName(d))) : '') +
     row(L.waterNow, `${r.cm} cm`) + (r.maxCm != null ? row(L.max, `${r.maxCm} cm`) : '') + (r.start ? row(L.since, hhmm(r.start)) : '') + row(L.updated, hhmm(r.updated)) +
-    `<div class="r"><a href="${esc(r.url)}" target="_blank" rel="noopener">${L.detail} ↗</a></div>`, fly);
+    `<div class="r"><a href="${esc(r.url)}" target="_blank" rel="noopener">${L.detail} ↗</a></div>` + nearCameraRow(r), fly);
 }
 function showCanal(c: Canal, fly = false) {
   const L = t();
@@ -534,7 +580,7 @@ function showReport(r: Report, fly = false) {
   open([r.lng, r.lat], `<b>Traffy Fondue</b><div>${esc(r.text || L.histReport)}</div>` + row(L.updated, bkkTime(r.time)) + row(L.stateLbl, esc(r.state)) +
     `<div style="color:var(--text-muted);font-size:11px;margin-top:4px">${esc(r.address)}</div>` +
     (r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '') +
-    `<div class="r"><a href="https://bangkok.traffy.in.th/detail?ticketID=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${L.traffyOpen} ↗</a></div>`, fly);
+    `<div class="r"><a href="https://bangkok.traffy.in.th/detail?ticketID=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${L.traffyOpen} ↗</a></div>` + nearCameraRow(r), fly);
 }
 function showDistrict(d: District, at?: maplibregl.LngLat) {
   const L = t();
@@ -560,6 +606,7 @@ function wireControls() {
   toggle('lyCanal', (on) => setVis(['canal'], on));
   toggle('lyRain', (on) => setVis(['rain'], on));
   toggle('lyReports', (on) => setVis(['reports'], on));
+  toggle('lyCams', (on) => setVis(['cameras'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));
   toggle('lyBuild', (on) => setVis(['buildings-3d'], on));
   toggle('lySat', (on) => setVis(['satellite'], on));

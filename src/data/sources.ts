@@ -264,3 +264,17 @@ export async function loadHistory(at: number): Promise<Snapshot> {
   const res = <T>(items: T[]): Result<T> => ({ items, snapshot: false, stale: items.length === 0 });
   return { road: res(road), canals: res(canals), rain: res(rain), reports: { items: reports, snapshot: false } };
 }
+
+// ---------- Traffic cameras (Longdo Traffic list; images/streams by iTIC Foundation & DOH) ----------
+// Only positions + names are used. Images stay on Longdo's page (link out) — they belong to the camera
+// owners, and the image server is often unreachable. Longdo marks the list cacheable for 4 h.
+export interface Camera { id: string; title: string; org: string; lng: number; lat: number }
+export const longdoCameraUrl = (id: string) => `https://traffic.longdo.com/cameralist?open=${encodeURIComponent(id)}`;
+
+export async function fetchCameras(): Promise<Camera[]> {
+  const d = (await getJson('https://traffic.longdo.com/camera.json')) as { item: { camid: string; title: string; organization: string; latitude: string; longitude: string }[] };
+  return d.item
+    .map((c) => ({ id: String(c.camid), title: String(c.title).replace(/\s+/g, ' ').trim(), org: String(c.organization ?? ''), lng: Number(c.longitude), lat: Number(c.latitude) }))
+    // Bangkok and its edges
+    .filter((c) => c.id && c.lat > 13.45 && c.lat < 14.0 && c.lng > 100.28 && c.lng < 100.98);
+}
