@@ -24,7 +24,7 @@ const T = {
     liveBtn: '● สด', traffic: '🚗 ดูสภาพจราจร (Google Maps)', trafficTip: 'เปิด Google Maps พร้อมชั้นจราจรแบบสด ตรงตำแหน่งที่แผนที่แสดงอยู่', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
     histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
     histRange: 'ย้อนหลังได้ 7 วัน · ข้อมูลฝนมีเฉพาะช่วงที่ระบบเริ่มเก็บ', histReport: 'แจ้งน้ำท่วม (ข้อมูลย้อนหลังไม่เก็บข้อความ/รูปภาพ)', via: 'ผ่าน สสน.', histSrc: 'ย้อนหลัง', refresh: '↻ อัปเดต', simMode: 'โหมดจำลอง (ข้อมูลสมมติ)',
-    play: '▶ จำลองฝนตก', pause: '⏸ หยุด', layers: 'ชั้นข้อมูล',
+    play: '▶ จำลองฝนตก', pause: '⏸ หยุด', layers: '🗂 ชั้นข้อมูล', layersHint: 'เลือกสิ่งที่แสดงบนแผนที่',
     l0: 'ปกติ', l1: 'เฝ้าระวัง', l2: 'เสี่ยงสูง', l3: 'ท่วมหนัก',
     lyRoad: 'เซนเซอร์น้ำท่วมถนน (กทม.)', lyCanal: 'ระดับน้ำคลอง/แม่น้ำ', lyRain: 'ฝน 24 ชม.', lyReports: 'ประชาชนแจ้งน้ำท่วม (Traffy)',
     lyDistrict: 'สีระดับความเสี่ยงรายเขต', lyBuild: 'อาคาร 3D', lySat: 'ภาพดาวเทียม', lyTerrain: 'ภูมิประเทศ (Terrain)',
@@ -37,7 +37,9 @@ const T = {
     lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
     impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
     byLabel: { doh: 'เจ้าหน้าที่กรมทางหลวง', itic: 'เจ้าหน้าที่ iTIC', public: 'ผู้ใช้แอป iTIC' } as Record<string, string>, events: 'เหตุการณ์',
-    srcEvents: 'เหตุการณ์: iTIC / Longdo Event', trafficIdx: 'ดัชนีจราจร', trafficTipIdx: 'ดัชนีการจราจร กทม. 0–10 จาก Longdo Traffic (ยิ่งสูงยิ่งติด)',
+    srcEvents: 'เหตุการณ์: iTIC / Longdo Event', srcTitle: 'แหล่งข้อมูล',
+    srcCams: 'กล้อง: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง',
+    srcDistricts: 'ขอบเขตเขต: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: 'ดัชนีจราจร', trafficTipIdx: 'ดัชนีการจราจร กทม. 0–10 จาก Longdo Traffic (ยิ่งสูงยิ่งติด)',
     lyCams: 'กล้องจราจร (Longdo/iTIC)', camTitle: 'กล้องจราจร', camOwner: 'เจ้าของกล้อง', camOpen: 'ดูภาพสดที่ Longdo Traffic',
     camNear: (name: string, m: number) => `📷 กล้องใกล้จุดนี้ (${m} ม.): ${name}`,
     traffyList: 'ประชาชนแจ้งล่าสุด (Traffy Fondue)', traffyEmpty: 'ไม่มีเรื่องแจ้งน้ำท่วมใน 24 ชม.', traffyOpen: 'ดูเรื่องนี้ใน Traffy Fondue', traffyMore: (n: number) => `ดูอีก ${n} เรื่อง`,
@@ -69,7 +71,7 @@ const T = {
     liveBtn: '● Live', traffic: '🚗 Live traffic (Google Maps)', trafficTip: 'Open Google Maps with the live traffic layer at the current map view', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
     histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
     histRange: 'Up to 7 days back · rain only from when recording started', histReport: 'Flood report (history keeps no text/photos)', via: 'via HII', histSrc: 'history', refresh: '↻ Refresh', simMode: 'Simulation mode (hypothetical)',
-    play: '▶ Simulate rain', pause: '⏸ Pause', layers: 'Layers',
+    play: '▶ Simulate rain', pause: '⏸ Pause', layers: '🗂 Layers', layersHint: 'choose what the map shows',
     l0: 'Normal', l1: 'Watch', l2: 'High risk', l3: 'Severe',
     lyRoad: 'Road flood sensors (BMA)', lyCanal: 'Canal/river levels', lyRain: '24h rainfall', lyReports: 'Citizen flood reports (Traffy)',
     lyDistrict: 'District risk colours', lyBuild: '3D buildings', lySat: 'Satellite', lyTerrain: 'Terrain',
@@ -82,7 +84,9 @@ const T = {
     lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
     impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
     byLabel: { doh: 'DOH staff', itic: 'iTIC staff', public: 'iTIC app user' } as Record<string, string>, events: 'incidents',
-    srcEvents: 'Incidents: iTIC / Longdo Event', trafficIdx: 'Traffic index', trafficTipIdx: 'Bangkok traffic index 0–10 from Longdo Traffic (higher = worse)',
+    srcEvents: 'Incidents: iTIC / Longdo Event', srcTitle: 'Data sources',
+    srcCams: 'Cameras: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / iTIC Foundation / DOH',
+    srcDistricts: 'District boundaries: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: 'Traffic index', trafficTipIdx: 'Bangkok traffic index 0–10 from Longdo Traffic (higher = worse)',
     lyCams: 'Traffic cameras (Longdo/iTIC)', camTitle: 'Traffic camera', camOwner: 'Owner', camOpen: 'Live view on Longdo Traffic',
     camNear: (name: string, m: number) => `📷 Nearest camera (${m} m): ${name}`,
     traffyList: 'Latest citizen reports (Traffy Fondue)', traffyEmpty: 'No flood reports in the last 24 h', traffyOpen: 'Open in Traffy Fondue', traffyMore: (n: number) => `Show ${n} more`,
@@ -238,7 +242,6 @@ map.on('load', async () => {
   });
   map.addSource('districts', {
     type: 'geojson', data: gj, promoteId: 'amp_code',
-    attribution: 'เขต: <a href="https://github.com/chingchai/OpenGISData-Thailand">OpenGISData-Thailand</a> (chingchai)',
   });
   const lvlState: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
   map.addLayer({
@@ -262,13 +265,12 @@ map.on('load', async () => {
   }, firstLabel);
 
   const empty = { type: 'FeatureCollection' as const, features: [] };
-  const tw = 'ฝน/ระดับน้ำ: <a href="https://www.thaiwater.net">คลังข้อมูลน้ำแห่งชาติ (สสน.)</a>';
-  map.addSource('rain', { type: 'geojson', data: empty, attribution: tw });
-  map.addSource('reports', { type: 'geojson', data: empty, attribution: 'แจ้งเหตุ: <a href="https://share.traffy.in.th/teamchadchart">Traffy Fondue</a>' });
-  map.addSource('canal', { type: 'geojson', data: empty, attribution: tw });
-  map.addSource('events', { type: 'geojson', data: empty, attribution: 'เหตุการณ์: <a href="https://live.iticfoundation.org/">iTIC</a> / <a href="https://event.longdo.com/">Longdo Event</a> / กรมทางหลวง' });
-  map.addSource('cameras', { type: 'geojson', data: empty, attribution: 'กล้อง: <a href="https://traffic.longdo.com/cameralist">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง' });
-  map.addSource('road', { type: 'geojson', data: empty, attribution: 'น้ำท่วมถนน: <a href="https://weather.bangkok.go.th/flood/">สำนักการระบายน้ำ กทม.</a>' });
+  map.addSource('rain', { type: 'geojson', data: empty });
+  map.addSource('reports', { type: 'geojson', data: empty });
+  map.addSource('canal', { type: 'geojson', data: empty });
+  map.addSource('events', { type: 'geojson', data: empty });
+  map.addSource('cameras', { type: 'geojson', data: empty });
+  map.addSource('road', { type: 'geojson', data: empty });
 
   map.addLayer({
     id: 'rain', type: 'circle', source: 'rain', layout: { visibility: 'none' },
@@ -339,8 +341,10 @@ map.on('load', async () => {
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   }
 
-  // Many sources = a long credit line; on phones start it folded behind the ⓘ button (still one tap away).
+  // On phones start the credit line folded behind the ⓘ button (still one tap away).
   if (matchMedia('(max-width: 820px)').matches) document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+  // Keep the layer picker open on roomy screens; small screens start folded (the button stays visible).
+  if (innerWidth >= 1200 && innerHeight >= 800) (document.querySelector('details.layers') as HTMLDetailsElement).open = true;
   wireControls();
   applyLang();
   // Camera list is static-ish and optional: load once, never block the page on it.
@@ -562,9 +566,15 @@ function render() {
 
   // Source status (live vs snapshot) — snapshot data must always be labelled.
   const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports], [L.srcEvents, events]];
+  const srcUrl = new Map<string, string>([
+    [L.srcRoad, 'https://weather.bangkok.go.th/flood/'], [L.srcCanal, 'https://www.thaiwater.net'], [L.srcRain, 'https://www.thaiwater.net'],
+    [L.srcTraffy, 'https://share.traffy.in.th/teamchadchart'], [L.srcEvents, 'https://live.iticfoundation.org/'],
+  ]);
+  const link = (n: string) => `<a href="${srcUrl.get(n)}" target="_blank" rel="noopener">${esc(n)}</a>`;
   const status = (r: Result<unknown>) => r.stale ? L.unavailable : historyAt != null ? L.histSrc : r.snapshot ? L.snapshot : r === road && roadVia ? `${L.live} (${L.via})` : L.live;
-  $('sources').innerHTML = srcs.map(([n, r]) => `<div>${esc(n)} — <span class="${r.snapshot || r.stale ? 'snap' : 'live'}">● ${status(r)}</span></div>`).join('')
-    + `<div>${esc(L.srcSim)}</div>`;
+  // Data-layer credits live here (with links) rather than in the map's credit line, which stays basemap-only and short.
+  $('sources').innerHTML = `<b>${L.srcTitle}</b>` + srcs.map(([n, r]) => `<div>${link(n)} — <span class="${r.snapshot || r.stale ? 'snap' : 'live'}">● ${status(r)}</span></div>`).join('')
+    + `<div>${L.srcCams}</div><div>${L.srcDistricts}</div><div>${esc(L.srcSim)}</div>`;
   const names = (f: (r: Result<unknown>) => boolean) => srcs.filter(([, r]) => f(r)).map(([n]) => n).join(', ');
   const stale = names((r) => !!r.stale), snaps = names((r) => r.snapshot && !r.stale);
   $('histBanner').hidden = historyAt == null;
@@ -777,6 +787,7 @@ function applyLang() {
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
   $('trafficBtn').title = L.trafficTip;
+  document.querySelector('.layers summary')!.innerHTML = `${esc(L.layers)} <small>— ${esc(L.layersHint)}</small>`;
   $('trafficIdx').title = L.trafficTipIdx;
   for (const id of ['rotL', 'rotR', 'spinBtn'] as const) {
     document.getElementById(id)?.setAttribute('aria-label', L[id]);
