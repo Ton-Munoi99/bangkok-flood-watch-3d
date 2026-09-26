@@ -63,7 +63,7 @@ const dams = parseDams({ dam: { data: { data: [
   { dam_date: '2026-09-26', dam_storage_percent: 83, dam_inflow: 49, dam_released: 2.2, dam: { dam_name: { th: 'ป่าสักชลสิทธิ์', en: 'Pasak' } } },
   { dam_date: '2026-09-26', dam_storage_percent: 62.7, dam_inflow: 31.4, dam_released: 3, dam: { dam_name: { th: 'ภูมิพล', en: 'Bhumibol' } } },
 ] } } });
-assert.deepStrictEqual(dams.map((d) => d.th), ['ภูมิพล', 'ป่าสักชลสิทธิ์']);
+assert.deepStrictEqual(dams.map((d) => [d.th, d.cp]), [['ภูมิพล', true], ['ป่าสักชลสิทธิ์', true], ['วชิราลงกรณ', false]]);
 assert.deepStrictEqual(parseC13({ waterlevel_data: { data: [
   { discharge: null, waterlevel_datetime: 'x', station: { tele_station_oldcode: 'C.2' } },
   { discharge: '1950.00', waterlevel_datetime: '2026-09-26 17:00', station: { tele_station_oldcode: 'C.13' } },

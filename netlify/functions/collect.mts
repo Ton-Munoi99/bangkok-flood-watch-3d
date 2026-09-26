@@ -42,7 +42,8 @@ export default async () => {
 
   // Dam figures are daily and only ship inside ThaiWater's 10 MB thailand_main, so refresh them every 3 h, not every run.
   const up = (await store.get('upstream', { type: 'json' })) as Upstream | null;
-  if (!up || now - Date.parse(up.fetchedAt) > 3 * 3600_000) {
+  // (also refetch a blob saved before all dams were kept)
+  if (!up || now - Date.parse(up.fetchedAt) > 3 * 3600_000 || !up.dams.some((d) => d.cp === false)) {
     try {
       const dams = parseDams(await getJson(`${TW}/thailand_main`));
       if (dams.length) await store.setJSON('upstream', { fetchedAt: new Date(now).toISOString(), dams } satisfies Upstream);

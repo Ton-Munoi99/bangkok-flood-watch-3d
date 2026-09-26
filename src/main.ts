@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, bkkMs, fetchCameras, longdoCameraUrl,
-  fetchEvents, fetchTrafficIndex, fetchUpstream, type FloodEvent, type UpstreamView,
+  fetchEvents, fetchTrafficIndex, fetchUpstream, type Dam, type FloodEvent, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
@@ -36,7 +36,7 @@ const T = {
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
     upDam: (pct: number, inflow: number, release: number) => `ความจุ ${pct.toFixed(0)}% · ไหลเข้า ${inflow.toFixed(1)} · ระบาย ${release.toFixed(1)} ล้าน ลบ.ม./วัน`,
-    upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upNone: 'ยังไม่มีข้อมูลเขื่อน',
+    upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upOthers: (n: number) => `เขื่อนอื่นทั่วประเทศ (${n})`, upNone: 'ยังไม่มีข้อมูลเขื่อน',
     linksBtn: '🔗 ลิงก์', linksTitle: '🔗 ลิงก์ติดตามสถานการณ์',
     links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', 'พยากรณ์ระดับน้ำในแม่น้ำ ล่วงหน้า 7 วัน'],
       ['ThaiWater (สสน.)', 'https://www.thaiwater.net', 'ระดับน้ำ ฝน เรดาร์ และรายงานสถานการณ์น้ำทั่วประเทศ'],
@@ -99,7 +99,7 @@ const T = {
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
     upDam: (pct: number, inflow: number, release: number) => `${pct.toFixed(0)}% full · in ${inflow.toFixed(1)} · out ${release.toFixed(1)} million m³/day`,
-    upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upNone: 'No dam data yet',
+    upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upOthers: (n: number) => `Other dams nationwide (${n})`, upNone: 'No dam data yet',
     linksBtn: '🔗 Links', linksTitle: '🔗 Follow the situation',
     links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', '7-day river flood forecasts'],
       ['ThaiWater (HII)', 'https://www.thaiwater.net', 'Water levels, rain, radar and national reports'],
@@ -617,8 +617,12 @@ function render() {
     const damColor = (p: number) => (p >= 100 ? LEVEL_COLORS[3] : p >= 80 ? LEVEL_COLORS[2] : LEVEL_COLORS[0]);
     const c13 = upstream.c13 ? `<div class="item" style="--c:var(--accent)"><div class="t"><span>${L.upC13}</span><span>${upstream.c13.discharge.toLocaleString()} ${L.upUnit}</span></div>
       <div class="s">${esc(upstream.c13.time)}</div></div>` : '';
-    const dams = upstream.dams.map((d) => `<div class="item" style="--c:${damColor(d.pct)}"><div class="t"><span>${esc(lang === 'th' ? d.th : d.en || d.th)}</span><span>${d.pct.toFixed(0)}%</span></div>
-      <div class="s">${L.upDam(d.pct, d.inflow, d.release)} · ${esc(d.date)}</div></div>`).join('');
+    const damItem = (d: Dam, withBasin: boolean) => `<div class="item" style="--c:${damColor(d.pct)}"><div class="t"><span>${esc(lang === 'th' ? d.th : d.en || d.th)}</span><span>${d.pct.toFixed(0)}%</span></div>
+      <div class="s">${withBasin && (d.basin || d.basinEn) ? `${esc(lang === 'th' ? d.basin : d.basinEn || d.basin)} · ` : ''}${L.upDam(d.pct, d.inflow, d.release)} · ${esc(d.date)}</div></div>`;
+    // cp flag missing = blob saved before all dams were kept -> treat as the Chao Phraya four.
+    const others = upstream.dams.filter((d) => d.cp === false);
+    const dams = upstream.dams.filter((d) => d.cp !== false).map((d) => damItem(d, false)).join('')
+      + (others.length ? `<details><summary class="empty">${L.upOthers(others.length)}</summary>${others.map((d) => damItem(d, true)).join('')}</details>` : '');
     html += section('upstream', upstream.c13 ? `${L.upTitle} · ${upstream.c13.discharge.toLocaleString()} ${L.upUnit}` : L.upTitle,
       c13 + (dams || `<div class="empty">${L.upNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.upNote}</div>`);
   }

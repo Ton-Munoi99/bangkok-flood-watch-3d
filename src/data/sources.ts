@@ -7,7 +7,7 @@ import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, SENSOR_SILENT_MS, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
   parseC13, type Dam, type DayFile, type EventBy, type FloodEvent, type Meta, type Upstream,
 } from './history.ts';
-export type { FloodEvent };
+export type { Dam, FloodEvent };
 export { bkkMs };
 
 export type Level = 0 | 1 | 2 | 3; // ปกติ / เฝ้าระวัง / เสี่ยงสูง / ท่วมหนัก

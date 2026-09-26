@@ -189,20 +189,25 @@ export const isActive = (e: { start: string; stop: string }, at: number) => Date
 // ---------- Upstream (น้ำเหนือ): the four main Chao Phraya-basin dams + Chao Phraya Dam outflow (C.13) ----------
 // Srinagarind/Vajiralongkorn are in the Mae Klong basin and don't drain through Bangkok, so they're left out.
 export const CHAO_PHRAYA_DAMS = ['ภูมิพล', 'สิริกิติ์', 'แควน้อยบำรุงแดน', 'ป่าสักชลสิทธิ์'];
-export interface Dam { th: string; en: string; date: string; pct: number; inflow: number; release: number } // inflow/release: million m³/day
+// inflow/release: million m³/day; cp = one of the four main Chao Phraya-basin dams draining through Bangkok
+export interface Dam { th: string; en: string; date: string; pct: number; inflow: number; release: number; basin: string; basinEn: string; cp: boolean }
 export interface Upstream { fetchedAt: string; dams: Dam[] }
 
-/** Pick the Chao Phraya-basin dams out of ThaiWater's (10 MB) thailand_main payload. */
+/** All large dams from ThaiWater's (10 MB) thailand_main payload: the four Chao Phraya dams first (fixed order), then the rest by % full. */
 export function parseDams(main: { dam?: { data?: unknown } }): Dam[] {
   const d = main?.dam?.data as { data?: unknown[] } | unknown[] | undefined;
   const rows = (Array.isArray(d) ? d : d?.data ?? []) as {
-    dam_date: string; dam_storage_percent: number | null; dam_inflow: number | null; dam_released: number | null; dam?: { dam_name?: { th?: string; en?: string } };
+    dam_date: string; dam_storage_percent: number | null; dam_inflow: number | null; dam_released: number | null;
+    dam?: { dam_name?: { th?: string; en?: string } }; basin?: { basin_name?: { th?: string; en?: string } };
   }[];
-  return CHAO_PHRAYA_DAMS.map((name) => rows.find((r) => r.dam?.dam_name?.th === name)).filter((r): r is NonNullable<typeof r> => !!r)
-    .map((r) => ({
-      th: r.dam!.dam_name!.th!, en: r.dam?.dam_name?.en ?? '', date: r.dam_date,
-      pct: Number(r.dam_storage_percent), inflow: Number(r.dam_inflow), release: Number(r.dam_released),
-    }));
+  const dams: Dam[] = rows.filter((r) => r.dam?.dam_name?.th && r.dam_storage_percent != null).map((r) => ({
+    th: r.dam!.dam_name!.th!, en: r.dam?.dam_name?.en ?? '', date: r.dam_date,
+    pct: Number(r.dam_storage_percent), inflow: Number(r.dam_inflow), release: Number(r.dam_released),
+    basin: r.basin?.basin_name?.th ?? '', basinEn: (r.basin?.basin_name?.en ?? '').replace(/ Basin Basin$/, ' Basin'),
+    cp: CHAO_PHRAYA_DAMS.includes(r.dam!.dam_name!.th!),
+  }));
+  const rank = (d: Dam) => (d.cp ? CHAO_PHRAYA_DAMS.indexOf(d.th) : CHAO_PHRAYA_DAMS.length);
+  return dams.sort((a, b) => rank(a) - rank(b) || b.pct - a.pct);
 }
 
 /** Chao Phraya Dam tailwater station C.13 (Chainat): outflow in m³/s, from ThaiWater waterlevel_load for Chainat (18). */
