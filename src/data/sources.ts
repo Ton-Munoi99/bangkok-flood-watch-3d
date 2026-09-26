@@ -33,7 +33,8 @@ async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]
 }
 
 async function fetchOk(url: string) {
-  const r = await fetch(url);
+  // Fail fast so one unreachable source (e.g. BMA from overseas hosts) doesn't stall the page; its snapshot is used instead.
+  const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r;
 }
