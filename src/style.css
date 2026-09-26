@@ -69,13 +69,13 @@ input[type=checkbox] { accent-color: var(--accent); }
 .live { color: var(--l0); } .snap { color: var(--l3); }
 
 /* popups */
-.maplibregl-popup-content { background: var(--panel); color: var(--text); border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 12px; font-family: var(--font-ui); font-size: 12.5px; max-width: 290px; }
+.maplibregl-popup-content { max-height: 40vh; overflow-y: auto; background: var(--panel); color: var(--text); border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 12px; font-family: var(--font-ui); font-size: 12.5px; max-width: 290px; }
 .maplibregl-popup-tip { display: none; }
 .maplibregl-popup-close-button { color: var(--text-muted); font-size: 16px; }
 .pop b { font-size: 14px; display: block; margin-bottom: 4px; padding-right: 14px; }
 .pop .r { display: flex; justify-content: space-between; gap: 12px; margin-top: 3px; color: var(--text-muted); }
 .pop .r span:last-child { color: var(--text); font-family: var(--font-mono); text-align: right; }
-.pop img { width: 100%; max-height: 150px; object-fit: cover; border-radius: 6px; margin-top: 6px; }
+.pop img { width: 100%; max-height: 110px; object-fit: cover; border-radius: 6px; margin-top: 6px; }
 .pop a { color: var(--accent); }
 .pop .tag { display: inline-block; font-size: 10.5px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; margin-top: 4px; }
 .maplibregl-ctrl-attrib { font-size: 10.5px; }
@@ -106,3 +106,4 @@ input[type=checkbox] { accent-color: var(--accent); }
 .timebar .btn { margin: 0; }
 .live-on { background: rgba(62, 213, 152, .18); border-color: var(--l0); color: var(--l0); }
 .banner.hist { border-color: var(--accent); color: var(--accent); }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; flex: none; box-sizing: border-box; }

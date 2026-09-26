@@ -33,6 +33,7 @@ const T = {
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
+    traffyList: 'ประชาชนแจ้งล่าสุด (Traffy Fondue)', traffyEmpty: 'ไม่มีเรื่องแจ้งน้ำท่วมใน 24 ชม.', traffyOpen: 'ดูเรื่องนี้ใน Traffy Fondue', traffyMore: (n: number) => `ดูอีก ${n} เรื่อง`,
     noAlerts: 'ไม่มีจุดท่วมหนักในขณะนี้', loading: 'กำลังโหลดข้อมูลล่าสุด…', more: (n: number) => `ดูอีก ${n} จุด`, noDistricts: 'ยังไม่มีเขตที่มีน้ำท่วมขัง',
     pts: 'จุดท่วม', reports: 'แจ้งเหตุ', since: 'ท่วมตั้งแต่', max: 'สูงสุด', updated: 'อัปเดต',
     district: 'เขต', districtLbl: 'เขต', area: 'พื้นที่', status: 'สถานะ', maxRoad: 'น้ำท่วมถนนสูงสุด', rainMax: 'ฝน 24 ชม. สูงสุด',
@@ -70,6 +71,7 @@ const T = {
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
+    traffyList: 'Latest citizen reports (Traffy Fondue)', traffyEmpty: 'No flood reports in the last 24 h', traffyOpen: 'Open in Traffy Fondue', traffyMore: (n: number) => `Show ${n} more`,
     noAlerts: 'No severe flooding right now', loading: 'Loading latest data…', more: (n: number) => `Show ${n} more`, noDistricts: 'No district has road flooding',
     pts: 'points', reports: 'reports', since: 'Since', max: 'Max', updated: 'Updated',
     district: '', districtLbl: 'District', area: 'Area', status: 'Status', maxRoad: 'Max road flooding', rainMax: 'Max 24h rain',
@@ -259,7 +261,7 @@ map.on('load', async () => {
   });
   map.addLayer({
     id: 'reports', type: 'circle', source: 'reports',
-    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 15, 6], 'circle-color': '#c084fc', 'circle-opacity': 0.8, 'circle-stroke-width': 0.5, 'circle-stroke-color': '#fff' },
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4, 13, 6, 16, 9], 'circle-color': '#c084fc', 'circle-opacity': 0.9, 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' },
   });
   map.addLayer({
     id: 'canal', type: 'circle', source: 'canal',
@@ -465,6 +467,21 @@ function render() {
       <div class="s">${d.road.filter((r) => r.cm > 0).length} ${L.pts} · ${d.reports} ${L.reports}${d.rainMax ? ` · ☔ ${d.rainMax.mm} mm` : ''}</div></button>`;
   }).join('');
 
+  // Latest citizen reports — clickable so the purple dots can be found from the list too.
+  const latestReports = [...reports.items].sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
+  const reportItem = (r: Report) => {
+    const d = findDistrict(r.lng, r.lat);
+    return `<button class="item" style="--c:#c084fc" data-report="${reports.items.indexOf(r)}">
+      <div class="t"><span>${esc(r.text ? r.text.slice(0, 60) : L.histReport)}</span></div>
+      <div class="s">${[bkkTime(r.time), d && esc(dName(d)), esc(r.state)].filter(Boolean).join(' · ')}</div></button>`;
+  };
+  html += `<h4>🟣 ${L.traffyList} (${latestReports.length})</h4>`;
+  if (!latestReports.length) html += `<div class="empty">${L.traffyEmpty}</div>`;
+  html += latestReports.slice(0, 10).map(reportItem).join('');
+  if (latestReports.length > 10) {
+    html += `<details><summary class="empty">${L.traffyMore(Math.min(latestReports.length, 60) - 10)}</summary>${latestReports.slice(10, 60).map(reportItem).join('')}</details>`;
+  }
+
   html += `<h4>${L.canals}</h4>`;
   html += [...canals.items].sort((a, b) => b.situation - a.situation).map((c) => `<button class="item" style="--c:${SITUATION_COLORS[c.situation]}" data-canal="${canals.items.indexOf(c)}">
       <div class="t"><span>${esc(name(c))}</span><span>${c.wl.toFixed(2)} m</span></div>
@@ -487,7 +504,9 @@ function render() {
 // ---------------- popups ----------------
 const row = (k: string, v: string) => `<div class="r"><span>${k}</span><span>${v}</span></div>`;
 function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = false) {
-  if (fly) map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15), duration: 1200 });
+  // Land the point below the stats panel (and left of the sidebar on desktop) so its popup isn't covered.
+  const offset: [number, number] = innerWidth > 820 ? [-170, 130] : [0, 140];
+  if (fly) map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15), duration: 1200, offset });
   popup.setLngLat(lngLat).setHTML(`<div class="pop">${html}</div>`).addTo(map);
 }
 function showRoad(r: RoadFlood, fly = false) {
@@ -514,7 +533,8 @@ function showReport(r: Report, fly = false) {
   const L = t();
   open([r.lng, r.lat], `<b>Traffy Fondue</b><div>${esc(r.text || L.histReport)}</div>` + row(L.updated, bkkTime(r.time)) + row(L.stateLbl, esc(r.state)) +
     `<div style="color:var(--text-muted);font-size:11px;margin-top:4px">${esc(r.address)}</div>` +
-    (r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ''), fly);
+    (r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '') +
+    `<div class="r"><a href="https://bangkok.traffy.in.th/detail?ticketID=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">${L.traffyOpen} ↗</a></div>`, fly);
 }
 function showDistrict(d: District, at?: maplibregl.LngLat) {
   const L = t();
@@ -602,6 +622,7 @@ function wireControls() {
     if (!b) return;
     if (b.dataset.road) showRoad(road.items[+b.dataset.road], true);
     else if (b.dataset.canal) showCanal(canals.items[+b.dataset.canal], true);
+    else if (b.dataset.report) showReport(reports.items[+b.dataset.report], true);
     else if (b.dataset.district) showDistrict(districts.find((d) => d.code === b.dataset.district)!);
     $('sidebar').classList.remove('open');
   });
@@ -615,7 +636,6 @@ function wireControls() {
 
   $('langTH').addEventListener('click', () => { lang = 'th'; applyLang(); });
   $('langEN').addEventListener('click', () => { lang = 'en'; applyLang(); });
-  if (matchMedia('(max-width: 820px)').matches) ($('lyRoad').closest('details') as HTMLDetailsElement).open = false;
 }
 
 function applyLang() {
