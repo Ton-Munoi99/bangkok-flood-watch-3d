@@ -15,9 +15,20 @@ const stations = JSON.parse(readFileSync(new URL('../src/data/mock/bma_flood.jso
   { flood_code: string; flood_name: string; flood_name_en: string; latitude: number; longitude: number }[];
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 
-const res = await fetch('https://weather.bangkok.go.th/', { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(60_000) });
-if (!res.ok) throw new Error(`BMA home ${res.status}`);
-const flooded = new Map(parseBmaHome(await res.text()).map((r) => [norm(r.name), r.cm]));
+// BMA's firewall intermittently answers 403 even to normal traffic; a block usually clears within minutes.
+// Retry politely (same honest User-Agent, spaced out) rather than losing the whole 30-min slot.
+async function fetchHome() {
+  const waits = [0, 60_000, 180_000];
+  for (let i = 0; ; i++) {
+    await new Promise((r) => setTimeout(r, waits[i]));
+    const res = await fetch('https://weather.bangkok.go.th/', { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(60_000) }).catch((e) => e as Error);
+    if (!(res instanceof Error) && res.ok) return res.text();
+    const why = res instanceof Error ? res.message : `HTTP ${res.status}`;
+    if (i === waits.length - 1) throw new Error(`BMA home failed after ${waits.length} tries: ${why}`);
+    console.log(`BMA home ${why}; retrying in ${waits[i + 1] / 60_000} min`);
+  }
+}
+const flooded = new Map(parseBmaHome(await fetchHome()).map((r) => [norm(r.name), r.cm]));
 
 const { day, bucket } = slot(Date.now());
 const updated = `${day}T${bucket}`;
