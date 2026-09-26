@@ -806,5 +806,10 @@ function applyLang() {
   render();
 }
 
+// The page is a fixed full-screen layout: a pinch that lands on a panel (not the map) would zoom the whole
+// page and leave it panned/cut off with scrollbars. Pinch-zoom the map only. (Cmd/Ctrl +/- page zoom still works.)
+window.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false }); // trackpad pinch (Chrome/Edge/Firefox)
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault()); // Safari pinch
+
 // Fill static UI text right away; the map/data can take several seconds.
 applyLang();

@@ -11,7 +11,7 @@
   --gap: 12px;
 }
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 13px; }
+html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; touch-action: pan-x pan-y; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 13px; }
 #map { position: fixed; inset: 0; }
 .panel {
   background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px;
