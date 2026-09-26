@@ -120,7 +120,7 @@ const $ = <E extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const LEVEL_COLORS = ['#3ed598', '#f5c748', '#f5924b', '#f2495c'];
 // Shared with the legend swatch via the --l-none CSS variable (MapLibre paint can't read CSS variables itself).
-const NO_DATA_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--l-none').trim() || '#1c2438';
+const NO_DATA_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--l-none').trim() || '#9aa3b2';
 const SITUATION_COLORS = ['#8996b0', '#8996b0', '#8996b0', '#3ed598', '#f5924b', '#f2495c'];
 const hhmm = (s: string | null) => (s ? s.replace('T', ' ').slice(11, 16) : '-'); // BMA/ThaiWater times are already Bangkok local
 const bkkTime = (iso: string) => new Date(iso).toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -172,7 +172,8 @@ let simCm = 60;
 maplibregl.setWorkerUrl(workerUrl);
 const map = new maplibregl.Map({
   container: 'map',
-  style: 'https://tiles.openfreemap.org/styles/dark',
+  // Light basemap: street names stay readable when zoomed in, and the risk colours stand out.
+  style: 'https://tiles.openfreemap.org/styles/positron',
   center: [100.56, 13.77],
   zoom: 10.6,
   pitch: 45,
@@ -217,6 +218,14 @@ const setData = (id: string, data: ReturnType<typeof fc>) => (map.getSource(id) 
 
 map.on('load', async () => {
   const firstLabel = map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+  // Positron's street names are pale and small; make them readable over 3D buildings and district colours.
+  for (const id of ['highway-name-path', 'highway-name-minor', 'highway-name-major']) {
+    if (!map.getLayer(id)) continue;
+    map.setPaintProperty(id, 'text-color', '#1f2937');
+    map.setPaintProperty(id, 'text-halo-color', '#ffffff');
+    map.setPaintProperty(id, 'text-halo-width', 1.6);
+    map.setLayoutProperty(id, 'text-size', ['interpolate', ['linear'], ['zoom'], 13, 12, 16, 15]);
+  }
 
   map.addSource('satellite', {
     type: 'raster',
@@ -254,18 +263,19 @@ map.on('load', async () => {
     id: 'district-fill', type: 'fill', source: 'districts',
     paint: {
       'fill-color': ['match', lvlState, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], NO_DATA_COLOR],
-      'fill-opacity': ['case', ['<', lvlState, 0], 0.12, 0.28],
+      'fill-opacity': ['case', ['<', lvlState, 0], 0.12, 0.3],
     },
   }, firstLabel);
-  map.addLayer({ id: 'district-lines', type: 'line', source: 'districts', paint: { 'line-color': '#38bdf8', 'line-width': 1, 'line-opacity': 0.55 } }, firstLabel);
+  map.addLayer({ id: 'district-lines', type: 'line', source: 'districts', paint: { 'line-color': '#1e6e8c', 'line-width': 1, 'line-opacity': 0.6 } }, firstLabel);
 
   // OSM building heights (OpenMapTiles render_height, metres).
   map.addLayer({
     id: 'buildings-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
     paint: {
-      'fill-extrusion-color': ['interpolate', ['linear'], ['get', 'render_height'], 0, '#3a4a6e', 60, '#5b77a8', 200, '#8fb4e8'],
-      'fill-extrusion-height': ['get', 'render_height'],
-      'fill-extrusion-base': ['get', 'render_min_height'],
+      // Many Bangkok footprints have no height; without the coalesce the colour expression fails and renders black.
+      'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 0], 0, '#e1e3e8', 60, '#c9ced8', 200, '#aeb7c6'],
+      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 3],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
       'fill-extrusion-opacity': 0.8,
     },
   }, firstLabel);
