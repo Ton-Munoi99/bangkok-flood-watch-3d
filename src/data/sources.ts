@@ -16,20 +16,26 @@ export interface Canal {
 export interface Rain { id: string; nameTh: string; nameEn: string; lng: number; lat: number; mm: number; updated: string }
 export interface Report { id: string; lng: number; lat: number; text: string; address: string; photo: string; time: string; state: string }
 
-export interface Result<T> { items: T[]; snapshot: boolean; error?: string }
+export interface Result<T> { items: T[]; snapshot: boolean; stale?: boolean; error?: string }
 
 const FORCE_MOCK = import.meta.env?.VITE_DATA_MODE === 'mock';
+export const STALE_MS = 6 * 3600 * 1000;
 
-async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]>): Promise<Result<T>> {
-  if (!FORCE_MOCK) {
-    try {
-      return { items: await live(), snapshot: false };
-    } catch (e) {
-      console.warn('live source failed, using snapshot', e);
-      return { items: await mock(), snapshot: true, error: String(e) };
-    }
+/** BMA/ThaiWater timestamps are Bangkok local time without an offset. */
+export const bkkMs = (s: string) => Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(s) ? s : `${s.replace(' ', 'T')}+07:00`);
+
+async function withFallback<T>(live: () => Promise<T[]>, mock: () => Promise<T[]>, timeOf: (x: T) => string): Promise<Result<T>> {
+  if (FORCE_MOCK) return { items: await mock(), snapshot: true };
+  try {
+    return { items: await live(), snapshot: false };
+  } catch (e) {
+    console.warn('live source failed, using snapshot', e);
+    const items = await mock();
+    const newest = Math.max(...items.map((x) => bkkMs(timeOf(x))));
+    // Old readings shown during a live flood would mislead, so a stale snapshot is dropped entirely.
+    if (Date.now() - newest > STALE_MS) return { items: [], snapshot: true, stale: true, error: String(e) };
+    return { items, snapshot: true, error: String(e) };
   }
-  return { items: await mock(), snapshot: true };
 }
 
 async function fetchOk(url: string) {
@@ -85,6 +91,7 @@ export const fetchRoadFlood = () =>
   withFallback(
     async () => parseBma(extractJsonAfter(await (await fetchOk('/proxy/bma/flood/')).text(), 'const floodData =') as BmaRaw[]),
     async () => parseBma((await import('./mock/bma_flood.json')).default as BmaRaw[]),
+    (r) => r.updated,
   );
 
 // ---------- ThaiWater (คลังข้อมูลน้ำแห่งชาติ, สสน.) — public API, CORS enabled ----------
@@ -116,12 +123,14 @@ export const fetchCanals = () =>
   withFallback(
     async () => parseCanal(await getJson(`${TW}/waterlevel_load?province_code=10`)),
     async () => parseCanal((await import('./mock/thaiwater_waterlevel.json')).default as never),
+    (c) => c.updated,
   );
 
 export const fetchRain = () =>
   withFallback(
     async () => parseRain(await getJson(`${TW}/rain_24h?province_code=10`)),
     async () => parseRain((await import('./mock/thaiwater_rain.json')).default as never),
+    (r) => r.updated,
   );
 
 // ---------- Traffy Fondue citizen reports (NECTEC × กทม.) — public share API ----------
@@ -148,4 +157,5 @@ export const fetchReports = () =>
     // Newest first; 500 covers several hours during heavy rain.
     async () => parseTraffy(await getJson('https://publicapi.traffy.in.th/share/teamchadchart/search?limit=500'), Date.now() - DAY),
     async () => parseTraffy((await import('./mock/traffy.json')).default as never, 0),
+    (r) => r.time,
   );

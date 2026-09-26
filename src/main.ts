@@ -25,6 +25,10 @@ const T = {
     lyDistrict: 'สีระดับความเสี่ยงรายเขต', lyBuild: 'อาคาร 3D', lySat: 'ภาพดาวเทียม', lyTerrain: 'ภูมิประเทศ (Terrain)',
     terrainNote: 'Terrain ความละเอียด ~30 ม. — พื้นที่ กทม. ราบมาก (ส่วนใหญ่ 0–2 ม. รทก.) จึงไม่เหมาะเป็นข้อมูลความสูงหลักสำหรับประเมินน้ำท่วม',
     alerts: '⚠ แจ้งเตือน: จุดท่วมหนัก', districts: 'เขตที่ได้รับผลกระทบ', canals: 'ระดับน้ำคลอง/แม่น้ำ (สสน.)',
+    unavailable: 'ไม่พร้อมใช้งาน', needSensor: 'ต้องใช้ข้อมูลเซนเซอร์ กทม.',
+    staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
+    summaryNoRoad: (rain: string, reports: number) => `ข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. ไม่พร้อมใช้งานตอนนี้ จึงยังบอกไม่ได้ว่าถนนไหนท่วม`
+      + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
     noAlerts: 'ไม่มีจุดท่วมหนักในขณะนี้', loading: 'กำลังโหลดข้อมูลล่าสุด…', more: (n: number) => `ดูอีก ${n} จุด`, noDistricts: 'ยังไม่มีเขตที่มีน้ำท่วมขัง',
     pts: 'จุดท่วม', reports: 'แจ้งเหตุ', since: 'ท่วมตั้งแต่', max: 'สูงสุด', updated: 'อัปเดต',
     district: 'เขต', districtLbl: 'เขต', area: 'พื้นที่', status: 'สถานะ', maxRoad: 'น้ำท่วมถนนสูงสุด', rainMax: 'ฝน 24 ชม. สูงสุด',
@@ -54,6 +58,10 @@ const T = {
     lyDistrict: 'District risk colours', lyBuild: '3D buildings', lySat: 'Satellite', lyTerrain: 'Terrain',
     terrainNote: 'Terrain is ~30 m resolution and Bangkok is very flat (mostly 0–2 m MSL), so it is not suitable as the primary elevation source for flood assessment.',
     alerts: '⚠ Alerts: severe flooding', districts: 'Affected districts', canals: 'Canal/river levels (HII)',
+    unavailable: 'unavailable', needSensor: 'needs BMA sensor data',
+    staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
+    summaryNoRoad: (rain: string, reports: number) => `BMA road-flood sensor data is unavailable right now, so flooded roads cannot be shown`
+      + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
     noAlerts: 'No severe flooding right now', loading: 'Loading latest data…', more: (n: number) => `Show ${n} more`, noDistricts: 'No district has road flooding',
     pts: 'points', reports: 'reports', since: 'Since', max: 'Max', updated: 'Updated',
     district: '', districtLbl: 'District', area: 'Area', status: 'Status', maxRoad: 'Max road flooding', rainMax: 'Max 24h rain',
@@ -320,9 +328,11 @@ function render() {
   const lv = districts.map((d) => (simOn ? d.simLevel : d.level));
   const score = districts.length ? Math.round((100 * lv.reduce<number>((a, l) => a + [0, 0.3, 0.6, 1][Math.max(l, 0)], 0)) / districts.length) : 0;
   const overall = score >= 60 ? 3 : score >= 35 ? 2 : score >= 15 ? 1 : 0;
-  $('riskValue').textContent = String(score);
-  $('riskValue').style.color = LEVEL_COLORS[overall];
-  $('riskLabel').textContent = lvlName(overall);
+  // Without sensors the index would read "normal" during a flood, so show nothing rather than a false all-clear.
+  const noRoad = !!road.stale && !simOn;
+  $('riskValue').textContent = noRoad ? '--' : String(score);
+  $('riskValue').style.color = noRoad ? '' : LEVEL_COLORS[overall];
+  $('riskLabel').textContent = noRoad ? L.needSensor : lvlName(overall);
 
   const flooded = road.items.filter((r) => r.cm > 0).sort((a, b) => b.cm - a.cm);
   const worst = flooded[0];
@@ -334,6 +344,10 @@ function render() {
     $('waterSub').textContent = L.srcSim;
     $('floodCount').textContent = `${lv.filter((l) => l === 3).length}/50`;
     $('floodedSub').textContent = L.floodedSim;
+  } else if (noRoad) {
+    $('waterTitle').textContent = L.waterReal;
+    for (const id of ['waterValue', 'floodCount']) $(id).textContent = '--';
+    for (const id of ['waterSub', 'floodedSub']) $(id).textContent = L.unavailable;
   } else {
     $('waterTitle').textContent = L.waterReal;
     $('waterValue').textContent = worst ? `${worst.cm} cm` : '0 cm';
@@ -347,12 +361,13 @@ function render() {
   // Summary + sidebar
   const heavy = flooded.filter((r) => r.level === 3);
   const affected = districts.filter((d) => maxCm(d) > 0 || d.reports >= 3).sort((a, b) => maxCm(b) - maxCm(a) || b.reports - a.reports);
-  $('summary').innerHTML = L.summary({
+  const rainTxt = topRain ? `<b>${topRain.mm} mm</b> (${esc(name(topRain))})` : '';
+  $('summary').innerHTML = noRoad ? L.summaryNoRoad(rainTxt, reports.items.length) : L.summary({
     pts: flooded.length,
     districts: new Set(flooded.map((r) => findDistrict(r.lng, r.lat)?.code)).size,
     heavy: heavy.length,
     worst: worst ? `<b>${esc(name(worst))}</b>${worstD ? ` (${esc(dName(worstD))})` : ''} <b>${worst.cm} cm</b>` : '',
-    rain: topRain ? `<b>${topRain.mm} mm</b> (${esc(name(topRain))})` : '',
+    rain: rainTxt,
     reports: reports.items.length,
   });
 
@@ -371,7 +386,7 @@ function render() {
   if (alertItems.length > 8) html += `<details><summary class="empty">${L.more(alertItems.length - 8)}</summary>${alertItems.slice(8).join('')}</details>`;
 
   html += `<h4>${L.districts} (${affected.length})</h4>`;
-  if (!affected.length) html += `<div class="empty">${L.noDistricts}</div>`;
+  if (!affected.length) html += `<div class="empty">${noRoad ? L.summaryNoRoad('', reports.items.length) : L.noDistricts}</div>`;
   html += affected.map((d) => {
     const max = maxCm(d);
     const lvl = simOn ? d.simLevel : Math.max(d.level, 0);
@@ -388,11 +403,12 @@ function render() {
 
   // Source status (live vs snapshot) — snapshot data must always be labelled.
   const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports]];
-  $('sources').innerHTML = srcs.map(([n, r]) => `<div>${esc(n)} — <span class="${r.snapshot ? 'snap' : 'live'}">● ${r.snapshot ? L.snapshot : L.live}</span></div>`).join('')
+  $('sources').innerHTML = srcs.map(([n, r]) => `<div>${esc(n)} — <span class="${r.snapshot ? 'snap' : 'live'}">● ${r.stale ? L.unavailable : r.snapshot ? L.snapshot : L.live}</span></div>`).join('')
     + `<div>${esc(L.srcSim)}</div>`;
-  const snaps = srcs.filter(([, r]) => r.snapshot).map(([n]) => n);
-  $('mockBanner').hidden = snaps.length === 0;
-  $('mockBanner').textContent = `${L.mockBanner} ${snaps.join(', ')}`;
+  const names = (f: (r: Result<unknown>) => boolean) => srcs.filter(([, r]) => f(r)).map(([n]) => n).join(', ');
+  const stale = names((r) => !!r.stale), snaps = names((r) => r.snapshot && !r.stale);
+  $('mockBanner').hidden = !stale && !snaps;
+  $('mockBanner').textContent = [stale && `${L.staleBanner} ${stale}`, snaps && `${L.mockBanner} ${snaps}`].filter(Boolean).join(' · ');
 }
 
 // ---------------- popups ----------------

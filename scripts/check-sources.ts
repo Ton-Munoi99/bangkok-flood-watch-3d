@@ -1,7 +1,7 @@
 // Run: node scripts/check-sources.ts [path/to/saved/weather.bangkok.go.th-flood.html]
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
-import { extractJsonAfter, roadLevel } from '../src/data/sources.ts';
+import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
 assert.deepStrictEqual(extractJsonAfter(tricky, 'const floodData ='), [{ a: 'has ] and } and " inside', b: [1, { c: 2 }] }]);
@@ -15,3 +15,9 @@ if (page) {
   console.log('real page rows:', rows.length);
 }
 console.log('ok');
+
+// Bangkok-local timestamps (no offset) vs explicit UTC must agree.
+assert.strictEqual(bkkMs('2026-09-26T06:10:00'), Date.parse('2026-09-25T23:10:00Z'));
+assert.strictEqual(bkkMs('2026-09-26 06:10'), Date.parse('2026-09-25T23:10:00Z'));
+assert.strictEqual(bkkMs('2026-09-25T23:10:00.000Z'), Date.parse('2026-09-25T23:10:00Z'));
+console.log('bkkMs ok');
