@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -75,3 +75,29 @@ assert.deepStrictEqual([situation(1.62, null, 1.5), situation(1.3, null, 1.5), s
 assert.strictEqual(realBank(0), null);
 assert.strictEqual(realBank(1.5), 1.5);
 console.log('bma canals ok');
+
+// TMD warnings: entity-decoded Thai, newest first, absolute links.
+const tmd = parseTmdWarnings(`<div class="link-list-content"><div class="link-list-title"><a href="/w/&#xE1D;-14">&#xE1D;&#xE19;&#xE15;&#xE01; &amp; ฉบับที่ 14 </a></div>
+  <div class="link-list-description"><a href="/w/x"> ฝนตก<br>หนัก </a></div><div class="caption-item d-flex"><div class="me-1">วันที่ข้อมูล:</div> <div>27 กันยายน 2569</div></div>
+  <div class="link-list-content"><div class="link-list-title">no link</div>
+  <div class="link-list-content"><div class="link-list-title"><a href="javascript:alert(1)">x</a></div>`);
+assert.strictEqual(thaiDay('3 มกราคม 2570'), '2027-01-03');
+assert.strictEqual(thaiDay('ไม่มี'), null);
+assert.deepStrictEqual(tmd, [{ title: 'ฝนตก & ฉบับที่ 14', text: 'ฝนตก หนัก', date: '27 กันยายน 2569', day: '2026-09-27', url: 'https://www.tmd.go.th/w/%E0%B8%9D-14' }]);
+console.log('tmd ok');
+
+// Near me: Google Maps links (pin beats viewport), plain pairs, short links rejected.
+assert.deepStrictEqual(parseLatLng('https://www.google.com/maps/place/X/@13.70,100.50,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d13.7563!4d100.5018'), { lat: 13.7563, lng: 100.5018 });
+assert.deepStrictEqual(parseLatLng('https://www.google.com/maps/@13.8123,100.6001,15z'), { lat: 13.8123, lng: 100.6001 });
+assert.deepStrictEqual(parseLatLng('https://maps.google.com/?q=13.75%2C100.55'), { lat: 13.75, lng: 100.55 });
+assert.deepStrictEqual(parseLatLng(' 13.75, 100.55 '), { lat: 13.75, lng: 100.55 });
+assert.strictEqual(parseLatLng('https://maps.app.goo.gl/AbCdEf123'), null);
+assert.strictEqual(parseLatLng('99.1, 100.5'), null);
+console.log('near-me ok');
+
+// Provinces: fresh readings only, Bangkok skipped, worst first.
+const pn = Date.parse('2026-09-27T08:00:00+07:00');
+const pr = (code: string, th: string, lvl: number, time = '2026-09-27 07:30') => ({ waterlevel_datetime: time, situation_level: lvl, station: { tele_station_lat: 14, tele_station_long: 100 }, geocode: { province_code: code, province_name: { th, en: th } } });
+assert.deepStrictEqual(parseProvinces([pr('10', 'กทม', 5), pr('12', 'นนท', 3), pr('14', 'อยุธยา', 5), pr('14', 'อยุธยา', 4), pr('14', 'อยุธยา', 5, '2026-09-26 07:00')], pn)
+  .map((p) => [p.th, p.n, p.over, p.near]), [['อยุธยา', 2, 1, 1], ['นนท', 1, 0, 0]]);
+console.log('provinces ok');

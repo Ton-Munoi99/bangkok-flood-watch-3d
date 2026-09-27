@@ -2,9 +2,12 @@
 // Runs on Netlify's (overseas) servers, so it uses only sources reachable from abroad:
 // ThaiWater (incl. its relay of BMA road-flood sensors), Traffy and Longdo (events, traffic index). weather.bangkok.go.th blocks non-Thai IPs.
 import { getStore } from '@netlify/blobs';
+import https from 'node:https';
+import tls from 'node:tls';
+import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
   DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
-  emptyDay, emptyMeta, mergeDay, parseDams, slot, type DayFile, type Meta, type Upstream,
+  emptyDay, emptyMeta, mergeDay, parseDams, parseProvinces, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
@@ -12,6 +15,15 @@ const getJson = async (url: string) => {
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
 };
+
+// tmd.go.th serves an incomplete TLS chain; add the missing intermediate rather than turning verification off.
+const getTmd = (url: string) => new Promise<string>((ok, fail) => {
+  const req = https.get(url, { ca: [...tls.rootCertificates, ALPHASSL_2025], timeout: 15_000, headers: { 'user-agent': 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)' } }, (r) => {
+    if (r.statusCode !== 200) { r.resume(); return fail(new Error(`${r.statusCode} ${url}`)); }
+    let body = ''; r.setEncoding('utf8').on('data', (c) => (body += c)).on('end', () => ok(body));
+  });
+  req.on('timeout', () => req.destroy(new Error('timeout'))).on('error', fail);
+});
 
 export default async () => {
   const store = getStore('history');
@@ -49,6 +61,24 @@ export default async () => {
       const dams = parseDams(await getJson(`${TW}/thailand_main`));
       if (dams.length) await store.setJSON('upstream', { fetchedAt: new Date(now).toISOString(), dams } satisfies Upstream);
     } catch (e) { console.error('dams failed:', e); }
+  }
+
+  // TMD warnings are issued a few times a day; hourly is plenty.
+  const tmd = (await store.get('tmd', { type: 'json' })) as TmdFeed | null;
+  if (!tmd || now - Date.parse(tmd.fetchedAt) > 3600_000) {
+    try {
+      const items = parseTmdWarnings(await getTmd(TMD_WARNINGS));
+      if (items.length) await store.setJSON('tmd', { fetchedAt: new Date(now).toISOString(), items } satisfies TmdFeed);
+    } catch (e) { console.error('tmd failed:', e); }
+  }
+
+  // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
+  const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;
+  if (!prov || now - Date.parse(prov.fetchedAt) > 30 * 60_000) {
+    try {
+      const rows = parseProvinces((await getJson(`${TW}/waterlevel_load`)).waterlevel_data.data, now);
+      if (rows.length) await store.setJSON('provinces', { fetchedAt: new Date(now).toISOString(), rows } satisfies Provinces);
+    } catch (e) { console.error('provinces failed:', e); }
   }
 
   const { blobs } = await store.list({ prefix: 'day/' });

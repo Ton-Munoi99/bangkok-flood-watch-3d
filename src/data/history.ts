@@ -236,3 +236,65 @@ export function addBmaCanals(meta: Meta, b: DayBuilder, rows: TwCanalRow[]) {
     if (r.canal_value != null && r.canal_datetime) b.canal(bkkMs(r.canal_datetime), code, Number(r.canal_value));
   }
 }
+
+// ---------- TMD weather warnings (tmd.go.th server-renders them, Thai text as &#x..; entities) ----------
+export const TMD_WARNINGS = 'https://www.tmd.go.th/warning-and-events/warning-storm';
+export interface TmdWarning { title: string; text: string; date: string; day: string | null; url: string }
+const TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+/** '27 กันยายน 2569' -> '2026-09-27' (Buddhist year), or null. */
+export function thaiDay(s: string) {
+  const m = s.match(/(\d{1,2})\s+(\S+)\s+(\d{4})/);
+  const mo = m ? TH_MONTHS.indexOf(m[2]) + 1 : 0;
+  return m && mo ? `${Number(m[3]) - 543}-${String(mo).padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
+}
+export interface TmdFeed { fetchedAt: string; items: TmdWarning[] }
+const unent = (s: string) => s
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+  .replace(/&(amp|quot|lt|gt|nbsp|#39);/g, (_, e) => ({ amp: '&', quot: '"', lt: '<', gt: '>', nbsp: ' ', '#39': "'" })[e as string]!);
+const txt = (s = '') => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+// ponytail: regex over a known template; if TMD redesigns, this returns [] and the UI just hides the card.
+export function parseTmdWarnings(html: string, max = 3): TmdWarning[] {
+  return unent(html).split('class="link-list-content"').slice(1, max + 1).flatMap((b) => {
+    const a = b.match(/link-list-title[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    const url = a && new URL(a[1], TMD_WARNINGS).href;
+    // Scraped links end up in the page, so only ever link back to tmd.go.th.
+    if (!a || !url?.startsWith('https://www.tmd.go.th/')) return [];
+    const date = txt(b.match(/วันที่ข้อมูล:\s*<\/div>\s*<div>([\s\S]*?)<\/div>/)?.[1]);
+    return [{
+      title: txt(a[2]),
+      text: txt(b.match(/link-list-description[^>]*>([\s\S]*?)<\/div>/)?.[1]).slice(0, 400),
+      date, day: thaiDay(date),
+      url,
+    }];
+  });
+}
+
+// ---------- "near me": coordinates from a pasted Google Maps link or "lat, lng" ----------
+/** Place pin (!3d..!4d..) first, then map centre (@lat,lng), then any "lat, lng" pair (q=, ll=, plain text). */
+export function parseLatLng(s: string): { lat: number; lng: number } | null {
+  let d = s;
+  try { d = decodeURIComponent(s); } catch { /* keep raw */ }
+  const m = d.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) ?? d.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ?? d.match(/(-?\d{1,2}\.\d+)\s*,\s*\+?(-?\d{1,3}\.\d+)/);
+  const lat = Number(m?.[1]), lng = Number(m?.[2]);
+  return m && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
+// ---------- ต่างจังหวัด: ThaiWater's nationwide telemetry, summarised per province by our collector ----------
+export interface ProvinceSum { code: string; th: string; en: string; lng: number; lat: number; n: number; over: number; near: number }
+export interface Provinces { fetchedAt: string; rows: ProvinceSum[] }
+interface TwNationRow { waterlevel_datetime: string; situation_level?: number | null; station: { tele_station_lat: number; tele_station_long: number }; geocode: { province_code: string; province_name: { th: string; en: string } } }
+/** Stations reporting within 6 h, per province (Bangkok excluded — the map covers it). situation_level 5 = over bank, 4 = near. */
+export function parseProvinces(rows: TwNationRow[], now: number): ProvinceSum[] {
+  const by = new Map<string, ProvinceSum & { sx: number; sy: number }>();
+  for (const r of rows) {
+    const g = r.geocode, lat = Number(r.station?.tele_station_lat), lng = Number(r.station?.tele_station_long);
+    if (!g?.province_code || g.province_code === '10' || !lat || !lng || now - bkkMs(r.waterlevel_datetime) > 6 * 3600_000) continue;
+    let p = by.get(g.province_code);
+    if (!p) by.set(g.province_code, p = { code: g.province_code, th: g.province_name.th, en: g.province_name.en, lng: 0, lat: 0, n: 0, over: 0, near: 0, sx: 0, sy: 0 });
+    p.n++; p.sx += lng; p.sy += lat;
+    if (r.situation_level === 5) p.over++; else if (r.situation_level === 4) p.near++;
+  }
+  return [...by.values()].map(({ sx, sy, ...p }) => ({ ...p, lng: +(sx / p.n).toFixed(3), lat: +(sy / p.n).toFixed(3) }))
+    .sort((a, b) => b.over - a.over || b.near - a.near || a.th.localeCompare(b.th, 'th'));
+}

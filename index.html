@@ -44,6 +44,7 @@
     <button class="btn small" id="hotlineBtn" data-i="hotlineBtn"></button>
     <button class="btn small" id="rainBtn" data-i="rainBtn"></button>
     <button class="btn small" id="linksBtn" data-i="linksBtn"></button>
+    <button class="btn small" id="nearBtn" data-i="nearBtn"></button>
   </div>
   <div class="traffic-row">
     <span id="trafficIdx" class="tidx" hidden></span>
@@ -93,6 +94,13 @@
 <dialog id="linksDlg" class="panel dlg">
   <div class="dlg-head"><b data-i="linksTitle"></b><button class="btn small" data-close aria-label="close">✕</button></div>
   <ul class="links" id="linksList"></ul>
+</dialog>
+<dialog id="nearDlg" class="panel dlg">
+  <div class="dlg-head"><b data-i="nearTitle"></b><button class="btn small" data-close aria-label="close">✕</button></div>
+  <button class="btn" id="nearGps" data-i="nearGps" style="width:100%"></button>
+  <form id="nearForm" class="near-form"><input id="nearInput" type="text" inputmode="url" autocomplete="off"><button class="btn" data-i="nearGo"></button></form>
+  <p class="note" id="nearMsg"></p>
+  <p class="note" data-i="nearNote"></p>
 </dialog>
 <dialog id="rainDlg" class="panel dlg dlg-wide">
   <div class="dlg-head">

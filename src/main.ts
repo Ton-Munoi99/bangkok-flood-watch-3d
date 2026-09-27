@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl,
-  fetchEvents, fetchTrafficIndex, fetchUpstream, type Dam, type FloodEvent, type UpstreamView,
+  fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type Dam, type FloodEvent, type ProvinceSum, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
@@ -37,6 +37,15 @@ const T = {
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
     upDam: (pct: number, inflow: number, release: number) => `ความจุ ${pct.toFixed(0)}% · ไหลเข้า ${inflow.toFixed(1)} · ระบาย ${release.toFixed(1)} ล้าน ลบ.ม./วัน`,
     upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upOthers: (n: number) => `เขื่อนอื่นทั่วประเทศ (${n})`, upNone: 'ยังไม่มีข้อมูลเขื่อน',
+    provTitle: (o: number, n: number, p: number) => `🗺️ ต่างจังหวัด · ล้นตลิ่ง ${o}/${n} สถานี (${p} จังหวัด)`, provRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น ${nr} · จาก ${n} สถานี`,
+    provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
+    tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
+    nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
+    nearPh: 'วางลิงก์ Google Maps หรือพิกัด เช่น 13.75, 100.55', nearBad: 'อ่านพิกัดไม่ได้ · ลิงก์สั้น (maps.app.goo.gl) ให้เปิดก่อนแล้วคัดลอก URL เต็มจากแถบที่อยู่ หรือพิมพ์พิกัด',
+    nearGpsFail: 'ขอตำแหน่งไม่ได้ (ไม่ได้อนุญาตหรือเครื่องไม่รองรับ) · วางลิงก์หรือพิกัดแทนได้', nearWait: 'กำลังหาตำแหน่ง…',
+    nearNote: 'ตำแหน่งใช้คำนวณในเครื่องนี้เท่านั้น ไม่ถูกส่งหรือบันทึกที่ใด', nearHere: 'รอบจุดนี้ 2 กม.', nearOutside: 'อยู่นอก กทม. · ข้อมูลในแผนที่นี้ครอบคลุมเฉพาะ กทม.',
+    nearRoad: 'ถนนน้ำท่วม', nearCanal: 'คลองล้น/ใกล้ล้นตลิ่ง', nearRain: 'ฝนสถานีใกล้สุด', nearEvents: 'เหตุการณ์จราจร/น้ำท่วม', nearReports: 'แจ้งน้ำท่วม Traffy',
+    nearNone: '✅ ไม่พบรายงานน้ำท่วมในรัศมี 2 กม.', nearPts: (n: number, max: number) => `${n} จุด · สูงสุด ${max} ซม.`,
     linksBtn: '🔗 ลิงก์', linksTitle: '🔗 ลิงก์ติดตามสถานการณ์',
     links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', 'พยากรณ์ระดับน้ำในแม่น้ำ ล่วงหน้า 7 วัน'],
       ['ThaiWater (สสน.)', 'https://www.thaiwater.net', 'ระดับน้ำ ฝน เรดาร์ และรายงานสถานการณ์น้ำทั่วประเทศ'],
@@ -106,6 +115,15 @@ const T = {
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
     upDam: (pct: number, inflow: number, release: number) => `${pct.toFixed(0)}% full · in ${inflow.toFixed(1)} · out ${release.toFixed(1)} million m³/day`,
     upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upOthers: (n: number) => `Other dams nationwide (${n})`, upNone: 'No dam data yet',
+    provTitle: (o: number, n: number, p: number) => `🗺️ Other provinces · over bank ${o}/${n} stations (${p} provinces)`, provRow: (o: number, nr: number, n: number) => `over bank ${o} · near ${nr} · of ${n} stations`,
+    provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
+    tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
+    nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
+    nearPh: 'Paste a Google Maps link or coordinates, e.g. 13.75, 100.55', nearBad: 'Couldn\'t read coordinates · for short links (maps.app.goo.gl) open them first and copy the full URL, or type coordinates',
+    nearGpsFail: 'Location unavailable (permission denied or unsupported) · paste a link or coordinates instead', nearWait: 'Finding you…',
+    nearNote: 'Your location is only used on this device; it is never sent or stored.', nearHere: 'Within 2 km of here', nearOutside: 'Outside Bangkok · this map only covers Bangkok',
+    nearRoad: 'Flooded roads', nearCanal: 'Canals over/near bank', nearRain: 'Nearest rain gauge', nearEvents: 'Traffic/flood incidents', nearReports: 'Traffy flood reports',
+    nearNone: '✅ No flooding reported within 2 km', nearPts: (n: number, max: number) => `${n} pts · max ${max} cm`,
     linksBtn: '🔗 Links', linksTitle: '🔗 Follow the situation',
     links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', '7-day river flood forecasts'],
       ['ThaiWater (HII)', 'https://www.thaiwater.net', 'Water levels, rain, radar and national reports'],
@@ -353,7 +371,8 @@ map.on('load', async () => {
     id: 'canal', type: 'circle', source: 'canal',
     paint: {
       // ~280 BMA canal points: smaller rings than the few ThaiWater river/canal stations
-      'circle-radius': ['case', ['get', 'small'], ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 6], 8],
+      // (MapLibre only allows "zoom" at the top of an interpolate, so the case goes inside each stop)
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['get', 'small'], 3.5, 8], 14, ['case', ['get', 'small'], 6, 8]],
       'circle-color': '#0b1322', 'circle-stroke-width': ['case', ['get', 'small'], 2.5, 4],
       'circle-stroke-color': ['match', ['get', 'situation'], 5, SITUATION_COLORS[5], 4, SITUATION_COLORS[4], 3, SITUATION_COLORS[3], SITUATION_COLORS[0]],
     },
@@ -607,6 +626,13 @@ function render() {
   let html = section('alerts', `${L.alerts} (${alertItems.length})`,
     alertItems.length ? list(alertItems, 3, L.more) : `<div class="empty">${L.noAlerts}</div>`);
 
+  // Latest Thai Meteorological Department warnings (Thai only; TMD publishes no English version here).
+  if (historyAt == null && upstream?.tmd.length) {
+    html += section('tmd', `${L.tmdTitle} (${upstream.tmd.length})`, upstream.tmd.map((w, i) => `<a class="item${i ? '' : ' alert'}"${i ? ' style="--c:var(--accent)"' : ''} href="${esc(w.url)}" target="_blank" rel="noopener">
+      <div class="t"><span>${esc(w.title)}</span></div><div class="s${i ? '' : ' clamp'}">${esc(w.date)}${i ? '' : ` · ${esc(w.text)}`}</div>
+      ${i ? '' : `<div class="s" style="color:var(--accent)">${L.tmdRead}</div>`}</a>`).join(''));
+  }
+
   const districtItems = affected.map((d) => {
     const max = maxCm(d);
     const lvl = simOn ? d.simLevel : Math.max(d.level, 0);
@@ -651,6 +677,16 @@ function render() {
       + (others.length ? `<details><summary class="empty">${L.upOthers(others.length)}</summary>${others.map((d) => damItem(d, true)).join('')}</details>` : '');
     html += section('upstream', upstream.c13 ? `${L.upTitle} · ${upstream.c13.discharge.toLocaleString()} ${L.upUnit}` : L.upTitle,
       c13 + (dams || `<div class="empty">${L.upNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.upNote}</div>`);
+  }
+
+  const prov = historyAt == null ? upstream?.provinces?.rows : null;
+  if (prov?.length) {
+    const hit = prov.filter((p) => p.over || p.near);
+    const items = hit.map((p) => `<button class="item" style="--c:${p.over ? LEVEL_COLORS[3] : LEVEL_COLORS[2]}" data-prov="${prov.indexOf(p)}">
+      <div class="t"><span>${esc(lang === 'th' ? p.th : p.en)}</span><span>${p.over}/${p.n}</span></div><div class="s">${L.provRow(p.over, p.near, p.n)}</div></button>`);
+    const sum = (k: 'over' | 'n') => prov.reduce((a, p) => a + p[k], 0);
+    html += section('provinces', L.provTitle(sum('over'), sum('n'), prov.filter((p) => p.over).length),
+      (items.length ? list(items, 5, L.more) : `<div class="empty">${L.provNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.provNote}</div>`);
   }
 
   // Last, as asked: roads staff reported as impassable for small cars.
@@ -780,6 +816,30 @@ function nearestSensorRow(d: District) {
   for (const r of road.items) { const m = metres(c, r); if (m < bestM) { best = r; bestM = m; } }
   return `<div class="empty" style="margin-top:4px">${esc(t().nearestSensor(name(best), (bestM / 1000).toFixed(1), best.cm))}</div>`;
 }
+function showProvince(p: ProvinceSum) {
+  const L = t();
+  map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
+  open([p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>
+    <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>`);
+}
+/** 📍 near me: everything currently loaded within 2 km of a point, shown in the map popup. */
+function showNear(p: { lng: number; lat: number }) {
+  const L = t();
+  const near = <T extends { lng: number; lat: number }>(xs: T[]) => xs.filter((x) => metres(p, x) <= 2000);
+  const flooded = near(road.items).filter((r) => r.cm > 0);
+  const canalHits = near(canals.items).filter((c) => c.situation >= 4);
+  const evs = near(events.items), reps = near(reports.items);
+  let gauge: Rain | null = null;
+  for (const r of rain.items) if (!gauge || metres(p, r) < metres(p, gauge)) gauge = r;
+  const d = findDistrict(p.lng, p.lat);
+  const any = flooded.length || canalHits.length || evs.length || reps.length;
+  open([p.lng, p.lat], `<b>📍 ${L.nearHere}</b>` + (d ? row(L.district, esc(dName(d))) : `<div class="empty">${L.nearOutside}</div>`) +
+    (flooded.length ? row(L.nearRoad, L.nearPts(flooded.length, Math.max(...flooded.map((r) => r.cm)))) : '') +
+    (canalHits.length ? row(L.nearCanal, canalHits.map((c) => esc(name(c))).slice(0, 3).join(', ')) : '') +
+    (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
+    (any ? '' : `<div style="margin:4px 0">${L.nearNone}</div>`) +
+    (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : ''), true);
+}
 function showDistrict(d: District, at?: maplibregl.LngLat) {
   const L = t();
   const lvl = simOn ? d.simLevel : d.level;
@@ -885,6 +945,7 @@ function wireControls() {
     else if (b.dataset.report) showReport(reports.items[+b.dataset.report], true);
     else if (b.dataset.event) showEvent(events.items[+b.dataset.event], true);
     else if (b.dataset.district) showDistrict(districts.find((d) => d.code === b.dataset.district)!);
+    else if (b.dataset.prov) showProvince(upstream!.provinces!.rows[+b.dataset.prov]);
     $('sidebar').classList.remove('open');
   });
 
@@ -938,6 +999,20 @@ function wireDialogs() {
   $('hotlineBtn').addEventListener('click', () => $<HTMLDialogElement>('hotlineDlg').showModal());
   $('summaryMore').addEventListener('click', () => { summaryOpen = !summaryOpen; render(); });
   $('linksBtn').addEventListener('click', () => $<HTMLDialogElement>('linksDlg').showModal());
+  const nearDlg = $<HTMLDialogElement>('nearDlg'), nearMsg = $('nearMsg');
+  $('nearBtn').addEventListener('click', () => { nearMsg.textContent = ''; $<HTMLInputElement>('nearInput').placeholder = t().nearPh; nearDlg.showModal(); });
+  const goNear = (p: { lng: number; lat: number }) => { nearDlg.close(); showNear(p); };
+  $('nearGps').addEventListener('click', () => {
+    if (!navigator.geolocation) { nearMsg.textContent = t().nearGpsFail; return; }
+    nearMsg.textContent = t().nearWait;
+    navigator.geolocation.getCurrentPosition((pos) => goNear({ lng: pos.coords.longitude, lat: pos.coords.latitude }),
+      () => (nearMsg.textContent = t().nearGpsFail), { enableHighAccuracy: true, timeout: 15_000 });
+  });
+  $('nearForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const p = parseLatLng($<HTMLInputElement>('nearInput').value);
+    if (p) goNear(p); else nearMsg.textContent = t().nearBad;
+  });
   // Windy's official embed widget, centred on Bangkok; loaded only when opened.
   const windy = (overlay: string) => {
     const q = new URLSearchParams({

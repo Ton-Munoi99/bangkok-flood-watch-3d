@@ -41,10 +41,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px 
 .side-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .summary { margin: 8px 0 4px; line-height: 1.6; color: var(--text); }
 /* long summary folds to 4 lines so the panel fits the screen; 'read more' expands it */
-.summary.clamp { display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.summary.clamp, .item .s.clamp { display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.item .s.clamp { -webkit-line-clamp: 3; line-clamp: 3; }
 .more-link { background: none; border: 0; padding: 0; margin: 0 0 8px; color: var(--accent); font-size: 12px; cursor: pointer; }
 .sidebar h4 { margin: 14px 0 6px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
 .item { display: block; width: 100%; text-align: left; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); border-left: 3px solid var(--c, var(--l0)); border-radius: 7px; padding: 7px 9px; margin-bottom: 6px; cursor: pointer; }
+a.item { color: inherit; text-decoration: none; }
 .item:hover { border-color: var(--accent); border-left-color: var(--c); }
 .item .t { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; }
 .item .t span:last-child:not(:first-child) { font-family: var(--font-mono); color: var(--c); white-space: nowrap; }
@@ -137,6 +139,8 @@ input[type=checkbox] { accent-color: var(--accent); }
 .quick-row .btn { margin: 0; }
 .dlg { color: var(--text); padding: 12px 14px; width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; }
 .dlg::backdrop { background: rgba(0, 0, 0, .45); }
+.near-form { display: flex; gap: 6px; margin-top: 8px; }
+.near-form input { flex: 1; min-width: 0; }
 .dlg-wide { width: min(960px, calc(100vw - 24px)); }
 .dlg-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
 .dlg-tabs { display: flex; gap: 4px; }
