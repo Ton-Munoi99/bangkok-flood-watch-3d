@@ -23,7 +23,7 @@ const T = {
     riskTitle: 'ดัชนีความเสี่ยงน้ำท่วมรวม', waterReal: 'น้ำท่วมถนนสูงสุด', waterSim: 'ระดับน้ำจำลอง',
     floodedTitle: 'เขตที่มีน้ำท่วมขัง', floodedSub: 'จากเซนเซอร์ กทม.', floodedSim: 'จำลอง: เขตที่น้ำล้น', msl: 'ม.รทก.', rainTitle: 'ฝนสะสม 24 ชม. สูงสุด', rainLbl: 'ฝน 24 ชม.',
     search: 'ค้นหาเขต เช่น จตุจักร, บางเขน', simBanner: 'โหมดจำลอง — สีเขตคำนวณจากความสูงพื้นที่สมมติ ไม่ใช่สถานการณ์จริง',
-    rotL: 'หมุนซ้าย 45°', rotR: 'หมุนขวา 45°', spinBtn: 'หมุนรอบ 360° (กดอีกครั้งเพื่อหยุด)',
+    homeBtn: 'กลับหน้าเริ่มต้น (กรุงเทพฯ ข้อมูลสด)', rotL: 'หมุนซ้าย 45°', rotR: 'หมุนขวา 45°', spinBtn: 'หมุนรอบ 360° (กดอีกครั้งเพื่อหยุด)',
     sideTitle: 'สถานการณ์น้ำท่วมตอนนี้', sideTitleAt: (t: string) => `สถานการณ์ ณ ${t}`,
     liveBtn: '● สด', traffic: '🚗 Google Maps', trafficTip: 'เปิด Google Maps พร้อมชั้นจราจรแบบสด ตรงตำแหน่งที่แผนที่แสดงอยู่', histLbl: 'ดูย้อนหลัง', histBanner: (t: string) => `กำลังดูข้อมูลย้อนหลัง ณ ${t} — กด "● สด" เพื่อกลับมาดูปัจจุบัน`,
     histNoRoad: 'ไม่มีข้อมูลเซนเซอร์ กทม. ในช่วงเวลานี้', histFail: 'โหลดข้อมูลย้อนหลังไม่ได้ (ใช้ได้เฉพาะบนเว็บที่ deploy แล้ว)',
@@ -128,7 +128,7 @@ const T = {
     riskTitle: 'City flood risk index', waterReal: 'Max road flooding', waterSim: 'Simulated water level',
     floodedTitle: 'Districts with flooding', floodedSub: 'from BMA sensors', floodedSim: 'simulated: flooded districts', msl: 'm MSL', rainTitle: 'Max 24h rainfall', rainLbl: '24h rain',
     search: 'Search district, e.g. Chatuchak', simBanner: 'Simulation mode — district colours use hypothetical ground heights, not the real situation',
-    rotL: 'Rotate left 45°', rotR: 'Rotate right 45°', spinBtn: 'Orbit 360° (press again to stop)',
+    homeBtn: 'Back to the start view (Bangkok, live data)', rotL: 'Rotate left 45°', rotR: 'Rotate right 45°', spinBtn: 'Orbit 360° (press again to stop)',
     sideTitle: 'Flood situation now', sideTitleAt: (t: string) => `Situation at ${t}`,
     liveBtn: '● Live', traffic: '🚗 Google Maps', trafficTip: 'Open Google Maps with the live traffic layer at the current map view', histLbl: 'History', histBanner: (t: string) => `Viewing history at ${t} — press "● Live" to return to now`,
     histNoRoad: 'No BMA sensor data for this time', histFail: 'Could not load history (works on the deployed site only)',
@@ -307,13 +307,15 @@ let simCm = 60;
 
 // ---------------- map ----------------
 maplibregl.setWorkerUrl(workerUrl);
+// The view the page opens with; the 🏠 button and unticking 🗺️ return here.
+const HOME = { center: [100.56, 13.77] as [number, number], zoom: 10.6, pitch: 45, bearing: 0 };
 const map = new maplibregl.Map({
   container: 'map',
   // Detailed light basemap (roads coloured by class, POIs, transit, land use) — closest to Google Maps.
   style: 'https://tiles.openfreemap.org/styles/liberty',
-  center: [100.56, 13.77],
-  zoom: 10.6,
-  pitch: 45,
+  center: HOME.center,
+  zoom: HOME.zoom,
+  pitch: HOME.pitch,
   maxPitch: 80,
   attributionControl: { compact: true },
 });
@@ -338,6 +340,15 @@ map.addControl({
       b.type = 'button'; b.id = id; b.textContent = label; b.addEventListener('click', onClick);
       el.appendChild(b);
     };
+    // 🏠 back to the opening view: live data, Bangkok, no popup. Layer and 🗺️ choices are kept.
+    btn('homeBtn', '🏠', () => {
+      setSpin(false);
+      popup.remove();
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+      $('sidebar').classList.remove('open');
+      if (historyAt != null) $('histLive').click();
+      map.flyTo({ ...HOME, duration: 1200 });
+    });
     btn('rotL', '⟲', () => { setSpin(false); map.easeTo({ bearing: map.getBearing() - 45, duration: 600 }); });
     btn('rotR', '⟳', () => { setSpin(false); map.easeTo({ bearing: map.getBearing() + 45, duration: 600 }); });
     btn('spinBtn', '360°', () => setSpin(!spinning));
@@ -987,7 +998,7 @@ function setNation(on: boolean, move = true) {
   // Phones: the stats/search panels cover the top ~260 px and the legend the bottom, so keep the country clear of them.
   const pad = innerWidth < 820 ? { top: 260, bottom: 130, left: 10, right: 10 } : { top: 30, bottom: 30, left: 30, right: 360 };
   if (on) map.fitBounds([[97.3, 5.6], [105.7, 20.5]], { padding: pad, pitch: 0, duration: 1500 });
-  else map.flyTo({ center: [100.56, 13.77], zoom: 10.6, pitch: 45, duration: 1500 });
+  else map.flyTo({ ...HOME, duration: 1500 });
 }
 function showProvinceByCode(code: string, at: maplibregl.LngLat) {
   const r = upstream?.provinces?.rows.find((x) => x.code === code);
@@ -1268,7 +1279,7 @@ function applyLang() {
   $('nationLbl').title = L.nationTip;
   document.querySelector('.layers summary')!.innerHTML = `${esc(L.layers)} <small>— ${esc(L.layersHint)}</small>`;
   $('trafficIdx').title = L.trafficTipIdx;
-  for (const id of ['rotL', 'rotR', 'spinBtn'] as const) {
+  for (const id of ['homeBtn', 'rotL', 'rotR', 'spinBtn'] as const) {
     document.getElementById(id)?.setAttribute('aria-label', L[id]);
     document.getElementById(id)?.setAttribute('title', L[id]);
   }
