@@ -54,10 +54,14 @@ const T = {
       ['Traffy Fondue', 'https://share.traffy.in.th/teamchadchart', 'แจ้งเหตุและติดตามเรื่องร้องเรียนกับ กทม.'],
       ['กรมอุตุนิยมวิทยา', 'https://www.tmd.go.th', 'พยากรณ์อากาศและประกาศเตือนภัย']] as [string, string, string][],
     hotlineBtn: '📞 สายด่วน', rainBtn: '🌧️ พยากรณ์ฝน', hotlineTitle: '📞 สายด่วนขอความช่วยเหลือ',
-    hotlineNote: 'บนมือถือ กดที่เบอร์เพื่อโทรได้ทันที', rainTitle2: '🌧️ พยากรณ์ฝน กทม. และปริมณฑล',
+    hotlineNote: 'บนมือถือ กดที่เบอร์เพื่อโทรได้ทันที', lineDdpm: 'ปภ. ทาง LINE: @1784DDPM',
+    careTitle: '🧓 บ้านที่มีผู้สูงอายุ ผู้ป่วยติดเตียง หรือคนเดินเองไม่ได้',
+    careText: 'ถ้าน้ำเข้าบ้านหรือขึ้นเร็ว และต้องการคนช่วยเคลื่อนย้าย โทร 1669 (เจ็บป่วยฉุกเฉิน) หรือ 1784 (ปภ.) · ในกรุงเทพฯ แจ้ง 1555 หรือสำนักงานเขต · ส่งเว็บนี้ให้ญาติหรือคนดูแลไว้เปิดดูค่าล่าสุดได้ เว็บนี้ไม่เก็บข้อมูลผู้ป่วยหรือที่อยู่',
+    shareSite: '🔗 ส่งเว็บนี้ให้ญาติ/คนดูแล', shareDistrict: '🔗 แชร์ลิงก์เขตนี้', copied: '✓ คัดลอกลิงก์แล้ว',
+    greenNote: 'สีบอกระดับน้ำในคลองเทียบตลิ่งเท่านั้น สีเขียวไม่ได้แปลว่าไม่ท่วม ถนนและบ้านรอบๆ ท่วมได้แม้คลองยังต่ำกว่าตลิ่ง ดูจุดน้ำท่วมถนนและรายงาน Traffy ประกอบ', rainTitle2: '🌧️ พยากรณ์ฝน กทม. และปริมณฑล',
     rainTabFc: 'พยากรณ์ฝน', rainTabRadar: 'เรดาร์', rainTabAccu: 'ฝนสะสม', rainNote: 'ข้อมูลจาก Windy (โมเดล ECMWF) — ใช้แถบเวลาด้านล่างเพื่อดูล่วงหน้า',
     hotlines: [['1784', 'ปภ. แจ้งเหตุสาธารณภัย'], ['1669', 'เจ็บป่วยฉุกเฉิน'], ['191', 'เหตุด่วนเหตุร้าย'], ['199', 'ดับเพลิง / กู้ภัย'], ['1130', 'ไฟรั่ว / ไฟดูด (การไฟฟ้านครหลวง)'],
-      ['1555', 'กรุงเทพมหานคร'], ['1460', 'กรมชลประทาน'], ['1182', 'กรมอุตุนิยมวิทยา'], ['1586', 'กรมทางหลวง (เส้นทางน้ำท่วม)'], ['1146', 'กรมทางหลวงชนบท']],
+      ['1555', 'กรุงเทพมหานคร'], ['02-248-5115', 'ศูนย์ป้องกันสถานการณ์น้ำท่วม กทม.'], ['1460', 'กรมชลประทาน'], ['1182', 'กรมอุตุนิยมวิทยา'], ['1586', 'กรมทางหลวง (เส้นทางน้ำท่วม)'], ['1146', 'กรมทางหลวงชนบท']],
     lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
     impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
     byLabel: { doh: 'เจ้าหน้าที่กรมทางหลวง', itic: 'เจ้าหน้าที่ iTIC', public: 'ผู้ใช้แอป iTIC' } as Record<string, string>, events: 'เหตุการณ์',
@@ -132,10 +136,14 @@ const T = {
       ['Traffy Fondue', 'https://share.traffy.in.th/teamchadchart', 'Report and track issues with the BMA'],
       ['Thai Meteorological Dept.', 'https://www.tmd.go.th', 'Forecasts and weather warnings']] as [string, string, string][],
     hotlineBtn: '📞 Hotlines', rainBtn: '🌧️ Rain forecast', hotlineTitle: '📞 Emergency hotlines (Thailand)',
-    hotlineNote: 'On a phone, tap a number to call.', rainTitle2: '🌧️ Rain forecast — Bangkok & vicinity',
+    hotlineNote: 'On a phone, tap a number to call.', lineDdpm: 'DDPM on LINE: @1784DDPM',
+    careTitle: '🧓 Homes with elderly, bedridden or mobility-impaired people',
+    careText: 'If water enters the house or rises fast and you need help moving someone, call 1669 (medical) or 1784 (DDPM) · in Bangkok also 1555 or your district office · Send this site to relatives or carers so they can check the latest readings. This site stores no patient or address data.',
+    shareSite: '🔗 Send this site to family/carers', shareDistrict: '🔗 Share this district', copied: '✓ Link copied',
+    greenNote: 'Colour shows the canal level against its bank only. Green does not mean no flooding: roads and homes nearby can flood while the canal is below bank. Check road-flood points and Traffy reports too.', rainTitle2: '🌧️ Rain forecast — Bangkok & vicinity',
     rainTabFc: 'Forecast', rainTabRadar: 'Radar', rainTabAccu: 'Accumulated', rainNote: 'Data from Windy (ECMWF model) — use the timeline to look ahead.',
     hotlines: [['1784', 'Disaster Prevention (DDPM)'], ['1669', 'Medical emergency'], ['191', 'Police emergency'], ['199', 'Fire / rescue'], ['1130', 'Electrical leak / shock (MEA)'],
-      ['1555', 'Bangkok Metropolitan Administration'], ['1460', 'Royal Irrigation Dept.'], ['1182', 'Thai Meteorological Dept.'], ['1586', 'Dept. of Highways (flooded routes)'], ['1146', 'Dept. of Rural Roads']],
+      ['1555', 'Bangkok Metropolitan Administration'], ['02-248-5115', 'BMA Flood Prevention Centre'], ['1460', 'Royal Irrigation Dept.'], ['1182', 'Thai Meteorological Dept.'], ['1586', 'Dept. of Highways (flooded routes)'], ['1146', 'Dept. of Rural Roads']],
     lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
     impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
     byLabel: { doh: 'DOH staff', itic: 'iTIC staff', public: 'iTIC app user' } as Record<string, string>, events: 'incidents',
@@ -497,6 +505,11 @@ function apply() {
     const other: Level = d.impassable ? 2 : d.events || d.reports >= 3 ? 1 : 0;
     d.level = d.road.length === 0 && other === 0 ? -1 : (Math.max(lvl, other) as Level);
   }
+  if (pendingDistrict && districts.length && (road.items.length || road.stale || road.error)) {
+    const d = districts.find((x) => slug(x) === pendingDistrict || x.th === pendingDistrict);
+    pendingDistrict = '';
+    if (d) showDistrict(d);
+  }
 
   setData('road', fc(road.items, (r) => [r.lng, r.lat], (r) => ({ cm: r.cm, level: r.level })));
   setData('canal', fc(canals.items, (c) => [c.lng, c.lat], (c) => ({ situation: c.situation, small: c.agency === 'สนน.' })));
@@ -663,7 +676,7 @@ function render() {
       <div class="t"><span>${esc(name(c))}</span><span>${c.wl.toFixed(2)} m</span></div>
       <div class="s">${canalStatus(c)}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}</div></button>`);
   const canalFresh = canals.items.filter((c) => c.note !== 'stale').length;
-  html += section('canals', `${L.canals} (${canals.items.length}) · ${L.canalFresh(canalFresh, canals.items.length)}`, list(canalItems, 10, L.traffyMore));
+  html += section('canals', `${L.canals} (${canals.items.length}) · ${L.canalFresh(canalFresh, canals.items.length)}`, `<div class="empty" style="margin:0 0 6px">${L.greenNote}</div>` + list(canalItems, 10, L.traffyMore));
 
   if (historyAt == null && upstream && (upstream.dams.length || upstream.c13)) {
     const damColor = (p: number) => (p >= 100 ? LEVEL_COLORS[3] : p >= 80 ? LEVEL_COLORS[2] : LEVEL_COLORS[0]);
@@ -772,6 +785,7 @@ function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = 
   // Land the point below the stats panel (and left of the sidebar on desktop) so its popup isn't covered.
   const offset: [number, number] = innerWidth > 820 ? [-170, 130] : [0, 140];
   if (fly) map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15), duration: 1200, offset });
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   popup.setLngLat(lngLat).setHTML(`<div class="pop">${html}</div>`).addTo(map);
 }
 function showRoad(r: RoadFlood, fly = false) {
@@ -840,6 +854,15 @@ function showNear(p: { lng: number; lat: number }) {
     (any ? '' : `<div style="margin:4px 0">${L.nearNone}</div>`) +
     (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : ''), true);
 }
+/** Native share sheet on phones; clipboard elsewhere (button text confirms). */
+async function shareLink(url: string, btn: HTMLElement) {
+  if (navigator.share) { await navigator.share({ title: document.title, url }).catch(() => {}); return; }
+  await navigator.clipboard?.writeText(url).then(() => (btn.textContent = t().copied)).catch(() => {});
+}
+// Shareable district links: #d=bang-kapi opens that district on load.
+const slug = (d: District) => d.en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const districtUrl = (d: District) => `${location.origin}${location.pathname}#d=${slug(d)}`;
+let pendingDistrict = decodeURIComponent(location.hash.match(/^#d=(.+)/)?.[1] ?? '');
 function showDistrict(d: District, at?: maplibregl.LngLat) {
   const L = t();
   const lvl = simOn ? d.simLevel : d.level;
@@ -850,7 +873,9 @@ function showDistrict(d: District, at?: maplibregl.LngLat) {
     row(L.status, status) + row(L.area, `${d.area.toFixed(1)} km²`) + nearestSensorRow(d) +
     row(L.maxRoad, `${maxCm(d)} cm`) + row(L.pts, String(d.road.filter((r) => r.cm > 0).length)) + row(`${L.reports} (24h)`, String(d.reports)) +
     (d.rainMax ? row(L.rainMax, `${d.rainMax.mm} mm`) : '') +
-    row(L.elevSim, `${d.elev} cm`) + (simOn ? row(L.marginSim, `${margin > 0 ? '+' : ''}${Math.round(margin)} cm`) : ''));
+    row(L.elevSim, `${d.elev} cm`) + (simOn ? row(L.marginSim, `${margin > 0 ? '+' : ''}${Math.round(margin)} cm`) : '') +
+    `<div class="r"><button class="btn small" data-share-district="${esc(d.code)}">${L.shareDistrict}</button></div>`);
+  history.replaceState(null, '', `#d=${slug(d)}`);
 }
 
 // ---------------- controls ----------------
@@ -968,7 +993,7 @@ function applyLang() {
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
   $('linksList').innerHTML = L.links.map(([n, u, d]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a><small>${esc(d)}</small></li>`).join('');
-  $('hotlineList').innerHTML = L.hotlines.map(([n, who]) => `<li><span>${esc(who)}</span><a href="tel:${n}">${n}</a></li>`).join('');
+  $('hotlineList').innerHTML = L.hotlines.map(([n, who]) => `<li><span>${esc(who)}</span><a href="tel:${n.replace(/-/g, '')}">${n}</a></li>`).join('');
   $('trafficBtn').title = L.trafficTip;
   document.querySelector('.layers summary')!.innerHTML = `${esc(L.layers)} <small>— ${esc(L.layersHint)}</small>`;
   $('trafficIdx').title = L.trafficTipIdx;
@@ -999,6 +1024,13 @@ function wireDialogs() {
   $('hotlineBtn').addEventListener('click', () => $<HTMLDialogElement>('hotlineDlg').showModal());
   $('summaryMore').addEventListener('click', () => { summaryOpen = !summaryOpen; render(); });
   $('linksBtn').addEventListener('click', () => $<HTMLDialogElement>('linksDlg').showModal());
+  $('shareSite').addEventListener('click', (e) => shareLink(location.origin + location.pathname, e.currentTarget as HTMLElement));
+  // Popup HTML is replaced often, so listen on the map container.
+  map.getContainer().addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-share-district]');
+    const d = b && districts.find((x) => x.code === b.dataset.shareDistrict);
+    if (d) shareLink(districtUrl(d), b);
+  });
   const nearDlg = $<HTMLDialogElement>('nearDlg'), nearMsg = $('nearMsg');
   $('nearBtn').addEventListener('click', () => { nearMsg.textContent = ''; $<HTMLInputElement>('nearInput').placeholder = t().nearPh; nearDlg.showModal(); });
   const goNear = (p: { lng: number; lat: number }) => { nearDlg.close(); showNear(p); };

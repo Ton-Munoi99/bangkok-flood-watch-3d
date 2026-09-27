@@ -139,6 +139,8 @@ input[type=checkbox] { accent-color: var(--accent); }
 .quick-row .btn { margin: 0; }
 .dlg { color: var(--text); padding: 12px 14px; width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; }
 .dlg::backdrop { background: rgba(0, 0, 0, .45); }
+.care { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--l2); border-radius: 8px; background: rgba(245, 146, 75, .08); }
+.care p { margin: 4px 0 8px; font-size: 12px; color: var(--text-muted); }
 .near-form { display: flex; gap: 6px; margin-top: 8px; }
 .near-form input { flex: 1; min-width: 0; }
 .dlg-wide { width: min(960px, calc(100vw - 24px)); }
