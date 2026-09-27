@@ -411,7 +411,8 @@ export function parseNation(wlRows: TwNationRow[], rainRows: { rain_24h: number 
 
 // ---------- ThaiWater-style "top 10 provinces" lists (highest station per province) ----------
 export interface TopRow { prov: string; station: string; value: number; time: string; lng: number; lat: number }
-export interface Rankings { rain: TopRow[]; water: TopRow[] }
+// rain = null: the rain feed failed this round (not the same as "no rain anywhere").
+export interface Rankings { rain: TopRow[] | null; water: TopRow[] }
 type Geo = { geocode?: { province_name?: { th?: string } } };
 /** Rain: max 24 h rain per province. Water: max metres over bank per province, from telemetry (ThaiWater's own
  *  over-bank figure) and canal gauges with a real bank level. Readings older than 6 h are ignored. Top 10 each. */
@@ -424,7 +425,8 @@ export function parseRankings(
   const prov = (r: Geo) => r.geocode?.province_name?.th ?? '';
   const top = (rows: TopRow[]) => {
     const best = new Map<string, TopRow>();
-    for (const r of rows) if (r.prov && (!best.has(r.prov) || r.value > best.get(r.prov)!.value)) best.set(r.prov, r);
+    // A row without coordinates couldn't be shown on the map (flyTo(NaN) throws), so it can't rank either.
+    for (const r of rows) if (r.prov && Number.isFinite(r.lng) && Number.isFinite(r.lat) && r.lng !== 0 && (!best.has(r.prov) || r.value > best.get(r.prov)!.value)) best.set(r.prov, r);
     return [...best.values()].sort((a, b) => b.value - a.value).slice(0, 10);
   };
   const rain = rainRows.filter((r) => r.rain_24h != null && r.rain_24h > 0 && fresh(r.rainfall_datetime)).map((r) => ({

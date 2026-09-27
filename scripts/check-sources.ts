@@ -178,8 +178,9 @@ console.log('province level ok');
     [{ ...g('ระยอง'), rain_24h: 286, rainfall_datetime: '2026-09-27 18:00', station: st('หาดใหญ่') },
      { ...g('ตาก'), rain_24h: 0, rainfall_datetime: '2026-09-27 18:00', station: st('แห้ง') }] as never,
     [{ ...g('กรุงเทพมหานคร'), canal_datetime: '2026-09-27 19:30', canal_value: 2.77, station: { canal_name: { th: 'คลองลาดพร้าว' }, bank: 2.2, canal_lat: 13.8, canal_long: 100.6 } },
-     { ...g('นนทบุรี'), canal_datetime: '2026-09-27 19:30', canal_value: 1.0, station: { canal_name: { th: 'ต่ำ' }, bank: 2.0 } }] as never, now);
+     { ...g('นนทบุรี'), canal_datetime: '2026-09-27 19:30', canal_value: 1.0, station: { canal_name: { th: 'ต่ำ' }, bank: 2.0 } },
+     { ...g('สมุทรปราการ'), canal_datetime: '2026-09-27 19:30', canal_value: 3.0, station: { canal_name: { th: 'ไม่มีพิกัด' }, bank: 2.0 } }] as never, now);
   assert.deepStrictEqual(r.water.map((x) => [x.prov, x.station, x.value]), [['กาญจนบุรี', 'ปากแซง', 6.04], ['กรุงเทพมหานคร', 'คลองลาดพร้าว', 0.57]]);
-  assert.deepStrictEqual(r.rain.map((x) => [x.prov, x.value]), [['ระยอง', 286]]);
+  assert.deepStrictEqual(r.rain!.map((x) => [x.prov, x.value]), [["ระยอง", 286]]);
   console.log('rankings ok');
 }

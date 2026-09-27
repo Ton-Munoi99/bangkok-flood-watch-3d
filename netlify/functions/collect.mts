@@ -75,6 +75,7 @@ export default async () => {
         const pts = parseNation(wl.value.waterlevel_data.data, rainRows, now);
         // Top-10 province lists, like ThaiWater's home page.
         const top = parseRankings(wl.value.waterlevel_data.data, rainRows, canal.status === 'fulfilled' ? canal.value.data : [], now);
+        if (rain.status === 'rejected') top.rain = null; // shown as "unavailable", not as an empty list
         if (pts.wl.length) await store.setJSON('nation', { fetchedAt: new Date(now).toISOString(), ...pts, top } satisfies NationPoints);
         if (rain.status === 'rejected') console.error('nation rain failed:', rain.reason);
       } catch (e) { console.error('provinces failed:', e); }

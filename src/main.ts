@@ -79,7 +79,7 @@ const T = {
     nationBtn: '🗺️ ต่างจังหวัด', nationTip: 'แสดงสีรายจังหวัด ทางหลวง และกล้องทั่วประเทศ (ปิด = เฉพาะ กทม.)',
     provLegend: 'สีจังหวัด (แม่น้ำ/ทางหลวง ไม่ใช่เซนเซอร์ถนนแบบ กทม.): แดง = สถานีล้นตลิ่ง 3 จุดขึ้นไป · ส้ม = ล้นตลิ่ง 1–2 จุด หรือทางหลวงผ่านไม่ได้ · เหลือง = ใกล้ล้นตลิ่ง หรือทางหลวงมีน้ำท่วม · เขียว = สถานีปกติ · เทา = ไม่มีรายงานใน 6 ชม.',
     provNoData: 'ไม่มีสถานีรายงานใน 6 ชม.',
-    topRain: '🌧️ ฝนสะสม 24 ชม. สูงสุดรายจังหวัด', topWater: '🌊 น้ำล้นตลิ่งสูงสุดรายจังหวัด', topOver: 'ล้นตลิ่ง', topNone: 'ไม่มีสถานีรายงานน้ำล้นตลิ่งในขณะนี้',
+    topRain: '🌧️ ฝนสะสม 24 ชม. สูงสุดรายจังหวัด', topWater: '🌊 น้ำล้นตลิ่งสูงสุดรายจังหวัด', topOver: 'ล้นตลิ่ง', topNone: 'ไม่มีสถานีรายงานน้ำล้นตลิ่งในขณะนี้', topRainNone: 'ไม่มีสถานีรายงานฝนในขณะนี้', topRainNA: 'ข้อมูลฝนไม่พร้อมใช้งานในรอบนี้ (ดึงจาก ThaiWater ไม่สำเร็จ)',
     topNote: (t: string) => `สถานีสูงสุดของแต่ละจังหวัด จากคลังข้อมูลน้ำแห่งชาติ (ThaiWater) · ข้อมูลเมื่อ ${t}`,
     ampLegend: 'ซูมเข้าจะเห็นรายอำเภอ: แดง = สถานีล้นตลิ่ง หรือทางหลวงผ่านไม่ได้ · ส้ม = ใกล้ล้นตลิ่ง ทางหลวงมีน้ำท่วม หรือฝนตกหนักมาก (>90 มม./24 ชม.) · เหลือง = ฝนตกหนัก (35–90 มม.) · เขียว = ปกติ · เทา = ไม่มีสถานีในอำเภอ (ไม่ได้แปลว่าไม่ท่วม)',
     ampTitle: 'อำเภอ', ampStations: 'สถานีวัดน้ำ', ampRain: 'ฝนสูงสุด 24 ชม.', ampNoStation: 'ไม่มีสถานีวัดน้ำหรือวัดฝนในอำเภอนี้ จึงไม่มีสี (ไม่ได้แปลว่าไม่ท่วม)',
@@ -184,7 +184,7 @@ const T = {
     nationBtn: '🗺️ Provinces', nationTip: 'Show province colours, highways and cameras nationwide (off = Bangkok only)',
     provLegend: 'Province colours (rivers/highways, not Bangkok-style road sensors): red = 3+ stations over bank · orange = 1–2 over bank or an impassable highway · yellow = near bank or a flooded highway · green = stations normal · grey = no report in 6 h',
     provNoData: 'No station reported in the last 6 h',
-    topRain: '🌧️ Highest 24 h rain by province', topWater: '🌊 Highest over-bank water by province', topOver: 'over bank', topNone: 'No station reports water over its bank right now',
+    topRain: '🌧️ Highest 24 h rain by province', topWater: '🌊 Highest over-bank water by province', topOver: 'over bank', topNone: 'No station reports water over its bank right now', topRainNone: 'No station reports rain right now', topRainNA: 'Rain data unavailable this round (ThaiWater fetch failed)',
     topNote: (t: string) => `Highest station in each province, from ThaiWater · data as of ${t}`,
     ampLegend: 'Zoom in for districts (amphoe): red = a station over bank or an impassable highway · orange = near bank, a flooded highway or very heavy rain (>90 mm/24 h) · yellow = heavy rain (35–90 mm) · green = normal · grey = no gauge in the district (not "no flooding")',
     ampTitle: 'District', ampStations: 'Water-level stations', ampRain: 'Max rain 24 h', ampNoStation: 'No water-level or rain gauge in this district, so no colour (not "no flooding")',
@@ -812,7 +812,9 @@ function render() {
     const note = `<div class="empty" style="margin:4px 0 8px">${L.topNote(bkkTime(upstream!.nation!.fetchedAt))}</div>`;
     const row2 = (r: TopRow, i: number, val: string, c: string) => `<button class="item" style="--c:${c}" data-top="${r.lng},${r.lat}">
       <div class="t"><span>${i + 1}. ${esc(r.prov)}</span><span>${val}</span></div><div class="s">${esc(r.station)} · ${esc(r.time.slice(11, 16))}</div></button>`;
-    html += section('toprain', L.topRain, top.rain.map((r, i) => row2(r, i, `${r.value} mm`, r.value > 90 ? LEVEL_COLORS[3] : r.value > 35 ? LEVEL_COLORS[2] : LEVEL_COLORS[1])).join('') + note);
+    html += section('toprain', L.topRain, (top.rain == null ? `<div class="empty">${L.topRainNA}</div>` : top.rain.length
+      ? top.rain.map((r, i) => row2(r, i, `${r.value} mm`, r.value > 90 ? LEVEL_COLORS[3] : r.value > 35 ? LEVEL_COLORS[2] : LEVEL_COLORS[1])).join('')
+      : `<div class="empty">${L.topRainNone}</div>`) + note);
     html += section('topwater', L.topWater, (top.water.length ? top.water.map((r, i) => row2(r, i, `+${r.value.toFixed(2)} m`, LEVEL_COLORS[3])).join('') : `<div class="empty">${L.topNone}</div>`) + note);
   }
 
