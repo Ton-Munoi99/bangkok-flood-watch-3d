@@ -90,8 +90,10 @@ export default async () => {
     } catch (e) { console.error('provinces failed:', e); }
   }
 
-  const { blobs } = await store.list({ prefix: 'day/' });
-  for (const x of blobs) if (x.key.slice(4) < oldest) await store.delete(x.key);
+  for (const prefix of ['day/', 'bmaday/']) {
+    const { blobs } = await store.list({ prefix });
+    for (const x of blobs) if (x.key.slice(prefix.length) < oldest) await store.delete(x.key);
+  }
   console.log('collected', [...b.days.keys()].filter((d) => d >= oldest).join(','), results.map((r) => r.status).join(','));
 };
 

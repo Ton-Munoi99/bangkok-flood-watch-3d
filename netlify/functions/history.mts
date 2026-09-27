@@ -1,12 +1,18 @@
 // GET /api/history/meta | /api/history/upstream | /api/history/tmd | /api/history/provinces | /api/history/doh | /api/history/YYYY-MM-DD — serves what collect.mts stored.
 import { getStore } from '@netlify/blobs';
-import { slot } from '../../src/data/history.ts';
+import { emptyDay, mergeDay, slot, type DayFile } from '../../src/data/history.ts';
 
 export default async (_req: Request, context: { params: Record<string, string> }) => {
   const key = context.params.key ?? '';
   if (!/^(meta|upstream|tmd|provinces|doh|\d{4}-\d{2}-\d{2})$/.test(key)) return new Response('bad key', { status: 400 });
 
-  const body = await getStore('history').get(/^\d/.test(key) ? `day/${key}` : key);
+  const store = getStore('history');
+  let body: string | null;
+  if (/^\d/.test(key)) {
+    // A day = the collector's file + the BMA pushes (separate blobs so the two writers never overwrite each other).
+    const [a, b] = (await Promise.all([store.get(`day/${key}`, { type: 'json' }), store.get(`bmaday/${key}`, { type: 'json' })])) as (DayFile | null)[];
+    body = a || b ? JSON.stringify(mergeDay(mergeDay(emptyDay(), a ?? emptyDay()), b ?? emptyDay())) : null;
+  } else body = await store.get(key, { type: 'text' });
   const headers: Record<string, string> = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=60' };
   if (body == null) return new Response('null', { status: 404, headers });
 

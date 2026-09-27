@@ -49,9 +49,11 @@ export default async (req: Request) => {
     b.road(bkkMs(r.updated), r.code, r.cm);
   }
   await store.setJSON('meta', meta);
+  // Own blob per day (bmaday/), never day/: the collector read-modify-writes day/ every 10 min, and when both ran in the
+  // same minute one write silently replaced the other. history.mts merges the two on read.
   for (const [day, add] of b.days) {
-    const base = ((await store.get(`day/${day}`, { type: 'json' })) as DayFile | null) ?? emptyDay();
-    await store.setJSON(`day/${day}`, mergeDay(base, add));
+    const base = ((await store.get(`bmaday/${day}`, { type: 'json' })) as DayFile | null) ?? emptyDay();
+    await store.setJSON(`bmaday/${day}`, mergeDay(base, add));
   }
   return json({ ok: true, readings: p.readings.length });
 };
