@@ -354,6 +354,26 @@ export async function fetchCameras(): Promise<Camera[]> {
     .filter((c) => c.id && c.lat > 13.45 && c.lat < 14.0 && c.lng > 100.28 && c.lng < 100.98);
 }
 
+// ---------- Dept. of Water Resources river/canal CCTV (list bundled in data/dwr_cameras.json; images live, CORS-enabled) ----------
+export interface DwrCamera { id: string; code: string; th: string; en: string; province: string; provinceEn: string; lng: number; lat: number }
+const DWR_API = 'https://telemetry.dwr.go.th/api';
+/** Latest snapshot as an object URL plus the capture time encoded in its path (/CODE/Y/M/D/H_M.jpg, Thai time). */
+export async function fetchDwrSnapshot(id: string): Promise<{ url: string; time: number | null }> {
+  // No Referer: DWR's server has been seen stalling on third-party referers.
+  const init = { referrerPolicy: 'no-referrer' as const, signal: AbortSignal.timeout(20_000) };
+  const pr = await fetch(`${DWR_API}/public/reportCctv/snapshot/${encodeURIComponent(id)}`, init);
+  const path = pr.ok ? String(((await pr.json()) as { value?: string }).value ?? '').trim() : '';
+  if (!path) throw new Error('no snapshot');
+  const ir = await fetch(`${DWR_API}/file/image/cctv`, { ...init, method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) });
+  if (!ir.ok) throw new Error(`image ${ir.status}`);
+  return { url: URL.createObjectURL(await ir.blob()), time: dwrPathTime(path) };
+}
+export function dwrPathTime(path: string) {
+  const m = path.match(/\/(\d{4})\/(\d{1,2})\/(\d{1,2})\/(\d{1,2})_(\d{1,2})\.jpe?g$/i);
+  const p2 = (x: string) => x.padStart(2, '0');
+  return m ? Date.parse(`${m[1]}-${p2(m[2])}-${p2(m[3])}T${p2(m[4])}:${p2(m[5])}:00+07:00`) : null;
+}
+
 // ---------- Longdo Event flood incidents + Longdo Bangkok traffic index (public feeds, CORS enabled) ----------
 export async function fetchEvents(): Promise<Result<FloodEvent>> {
   try {

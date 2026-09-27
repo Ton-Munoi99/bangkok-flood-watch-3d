@@ -4,9 +4,10 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
+import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, type DwrCamera,
   fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type Dam, type FloodEvent, type ProvinceSum, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
@@ -68,6 +69,8 @@ const T = {
     srcEvents: 'เหตุการณ์: iTIC / Longdo Event', srcTitle: 'แหล่งข้อมูล',
     srcCams: 'กล้อง: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง',
     srcDistricts: 'ขอบเขตเขต: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: '🚦 จราจร', trafficTipIdx: 'ดัชนีการจราจร กทม. 0–10 จาก Longdo Traffic (ยิ่งสูงยิ่งติด)',
+    lyDwr: 'กล้องแม่น้ำ/คลอง กรมทรัพยากรน้ำ (ทั่วประเทศ)', dwrAgency: 'กรมทรัพยากรน้ำ', dwrLoading: 'กำลังโหลดภาพ…', dwrFail: 'โหลดภาพไม่ได้ในขณะนี้',
+    dwrOld: 'ภาพเก่ากว่า 1 ชม. อาจไม่ใช่สภาพปัจจุบัน', dwrShot: 'ถ่ายเมื่อ', dwrNote: 'ภาพประกอบเท่านั้น ไม่ใช่ค่าระดับน้ำ', dwrOpen: 'ดูสถานีที่เว็บกรมทรัพยากรน้ำ', dwrProv: 'จังหวัด',
     lyCams: 'กล้องจราจร (Longdo/iTIC)', camTitle: 'กล้องจราจร', camOwner: 'เจ้าของกล้อง', camOpen: 'ดูภาพสดที่ Longdo Traffic',
     camNear: (name: string, m: number) => `📷 กล้องใกล้จุดนี้ (${m} ม.): ${name}`,
     traffyList: 'ประชาชนแจ้งล่าสุด (Traffy Fondue)', traffyEmpty: 'ไม่มีเรื่องแจ้งน้ำท่วมใน 24 ชม.', traffyOpen: 'ดูเรื่องนี้ใน Traffy Fondue', traffyMore: (n: number) => `ดูอีก ${n} เรื่อง`,
@@ -150,6 +153,8 @@ const T = {
     srcEvents: 'Incidents: iTIC / Longdo Event', srcTitle: 'Data sources',
     srcCams: 'Cameras: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / iTIC Foundation / DOH',
     srcDistricts: 'District boundaries: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: '🚦 Traffic', trafficTipIdx: 'Bangkok traffic index 0–10 from Longdo Traffic (higher = worse)',
+    lyDwr: 'River/canal cameras, Dept. of Water Resources (nationwide)', dwrAgency: 'Dept. of Water Resources', dwrLoading: 'Loading image…', dwrFail: 'Image unavailable right now',
+    dwrOld: 'Image is over 1 h old — may not show current conditions', dwrShot: 'Taken', dwrNote: 'For context only — not a water-level reading', dwrOpen: 'Station on DWR website', dwrProv: 'Province',
     lyCams: 'Traffic cameras (Longdo/iTIC)', camTitle: 'Traffic camera', camOwner: 'Owner', camOpen: 'Live view on Longdo Traffic',
     camNear: (name: string, m: number) => `📷 Nearest camera (${m} m): ${name}`,
     traffyList: 'Latest citizen reports (Traffy Fondue)', traffyEmpty: 'No flood reports in the last 24 h', traffyOpen: 'Open in Traffy Fondue', traffyMore: (n: number) => `Show ${n} more`,
@@ -234,6 +239,7 @@ let summaryOpen = false; // long summary expanded by the viewer
 const secOpen = (id: string) => openSecs.has(id);
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
 let cameras: Camera[] = [];
+let dwrCams: DwrCamera[] = [];
 let simOn = false;
 let simCm = 60;
 
@@ -360,6 +366,7 @@ map.on('load', async () => {
   map.addSource('canal', { type: 'geojson', data: empty });
   map.addSource('events', { type: 'geojson', data: empty });
   map.addSource('cameras', { type: 'geojson', data: empty });
+  map.addSource('dwr-cams', { type: 'geojson', data: empty });
   map.addSource('road', { type: 'geojson', data: empty });
 
   map.addLayer({
@@ -386,6 +393,7 @@ map.on('load', async () => {
     },
   });
   map.addImage('cam-icon', cameraIcon(), { pixelRatio: 1.4 });
+  map.addImage('dwr-icon', cameraIcon('#2dd4bf'), { pixelRatio: 1.4 });
   map.addImage('ev-icon', eventIcon('#f5924b'), { pixelRatio: 1.4 });
   map.addImage('ev-icon-x', eventIcon('#f2495c'), { pixelRatio: 1.4 });
   map.addLayer({
@@ -394,6 +402,9 @@ map.on('load', async () => {
   });
   map.addLayer({
     id: 'cameras', type: 'symbol', source: 'cameras', layout: { visibility: 'none', 'icon-image': 'cam-icon', 'icon-allow-overlap': true },
+  });
+  map.addLayer({
+    id: 'dwr-cams', type: 'symbol', source: 'dwr-cams', layout: { 'icon-image': 'dwr-icon', 'icon-allow-overlap': true },
   });
   map.addLayer({
     id: 'road', type: 'circle', source: 'road',
@@ -414,7 +425,7 @@ map.on('load', async () => {
   });
 
   // Click priority: most specific layer first.
-  const clickable = ['road', 'events', 'canal', 'cameras', 'reports', 'rain', 'district-fill'];
+  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'reports', 'rain', 'district-fill'];
   map.on('click', (e) => {
     // A few pixels of slack so small markers are easy to hit (especially by finger).
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
@@ -426,6 +437,7 @@ map.on('load', async () => {
     else if (f.layer.id === 'reports') showReport(reports.items[i]);
     else if (f.layer.id === 'rain') showRain(rain.items[i]);
     else if (f.layer.id === 'cameras') showCamera(cameras[i]);
+    else if (f.layer.id === 'dwr-cams') showDwrCamera(dwrCams[i]);
     else if (f.layer.id === 'events') showEvent(events.items[i]);
     else showDistrict(districts.find((d) => d.code === f.id)!, e.lngLat);
   });
@@ -445,6 +457,10 @@ map.on('load', async () => {
     cameras = c;
     setData('cameras', fc(cameras, (x) => [x.lng, x.lat], () => ({})));
   }).catch((e) => console.warn('camera list unavailable', e));
+  fetch(dwrCamsUrl).then((r) => r.json()).then((d: { cameras: DwrCamera[] }) => {
+    dwrCams = d.cameras;
+    setData('dwr-cams', fc(dwrCams, (x) => [x.lng, x.lat], () => ({})));
+  }).catch((e) => console.warn('DWR camera list unavailable', e));
   await refresh(firstFetch);
   setInterval(() => historyAt == null && refresh(), 5 * 60 * 1000);
 });
@@ -733,14 +749,14 @@ function render() {
 
 // ---------------- cameras ----------------
 /** 28×28 (@2x) camera glyph drawn on a canvas — MapLibre's glyph fonts have no emoji. */
-function cameraIcon() {
+function cameraIcon(lens = '#38bdf8') {
   const c = document.createElement('canvas');
   c.width = c.height = 28;
   const g = c.getContext('2d')!;
   g.fillStyle = '#0b1322'; g.strokeStyle = '#e8ecf4'; g.lineWidth = 2;
   g.beginPath(); g.roundRect(2, 7, 20, 15, 3); g.fill(); g.stroke();
   g.beginPath(); g.moveTo(22, 12); g.lineTo(27, 9); g.lineTo(27, 20); g.lineTo(22, 17); g.closePath(); g.fillStyle = '#e8ecf4'; g.fill();
-  g.beginPath(); g.arc(12, 14.5, 4, 0, Math.PI * 2); g.fillStyle = '#38bdf8'; g.fill();
+  g.beginPath(); g.arc(12, 14.5, 4, 0, Math.PI * 2); g.fillStyle = lens; g.fill();
   return g.getImageData(0, 0, 28, 28);
 }
 /** Metres between two points (equirectangular — plenty accurate within a city). */
@@ -772,6 +788,27 @@ function showEvent(e: FloodEvent, fly = false) {
     row(L.evWhen, `${bkkTime(e.start)} – ${bkkTime(e.stop)}`) + row(L.evBy, L.byLabel[e.by]) +
     (e.image ? `<img src="${esc(e.image)}" alt="" loading="lazy">` : '') +
     `<div class="r"><a href="https://live.iticfoundation.org/" target="_blank" rel="noopener">${L.evOpen} ↗</a></div>` + nearCameraRow(e), fly);
+}
+let dwrObjectUrl = '';
+function showDwrCamera(c: DwrCamera) {
+  const L = t();
+  open([c.lng, c.lat], `<b>📷 ${esc(lang === 'th' ? c.th : c.en || c.th)}</b>` + row(L.camOwner, L.dwrAgency) +
+    row(L.dwrProv, esc(lang === 'th' ? c.province : c.provinceEn || c.province)) +
+    `<div class="cam-img" data-dwr="${esc(c.id)}"><div class="empty">${L.dwrLoading}</div></div><div class="empty">${L.dwrNote}</div>` +
+    `<div class="r"><a href="https://telemetry.dwr.go.th/station/${encodeURIComponent(c.code)}" target="_blank" rel="noopener">${L.dwrOpen} ↗</a></div>`);
+  fetchDwrSnapshot(c.id).then(({ url, time }) => {
+    const box = document.querySelector<HTMLElement>(`.cam-img[data-dwr="${CSS.escape(c.id)}"]`);
+    if (!box) return URL.revokeObjectURL(url); // popup already moved on
+    if (dwrObjectUrl) URL.revokeObjectURL(dwrObjectUrl);
+    dwrObjectUrl = url;
+    const old = time == null || Date.now() - time > 3600_000;
+    box.innerHTML = `<img src="${url}" alt="">` + `<div class="s" style="${old ? 'color:var(--l2);font-weight:600' : ''}">` +
+      (time != null ? `${L.dwrShot} ${esc(new Date(time).toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' }))}` : '') +
+      (old ? ` · ⚠️ ${L.dwrOld}` : '') + '</div>';
+  }).catch(() => {
+    const box = document.querySelector<HTMLElement>(`.cam-img[data-dwr="${CSS.escape(c.id)}"]`);
+    if (box) box.innerHTML = `<div class="empty">${L.dwrFail}</div>`;
+  });
 }
 function showCamera(c: Camera) {
   const L = t();
@@ -833,7 +870,8 @@ function nearestSensorRow(d: District) {
 function showProvince(p: ProvinceSum) {
   const L = t();
   map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
-  open([p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>
+  const cams = dwrCams.filter((c) => c.province === p.th).length;
+  open([p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
     <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>`);
 }
 /** 📍 near me: everything currently loaded within 2 km of a point, shown in the map popup. */
@@ -890,6 +928,7 @@ function wireControls() {
   toggle('lyRain', (on) => setVis(['rain'], on));
   toggle('lyReports', (on) => setVis(['reports'], on));
   toggle('lyCams', (on) => setVis(['cameras'], on));
+  toggle('lyDwr', (on) => setVis(['dwr-cams'], on));
   toggle('lyEvents', (on) => setVis(['events'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));
   toggle('lyBuild', (on) => setVis(['buildings-3d'], on));

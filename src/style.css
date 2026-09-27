@@ -154,3 +154,4 @@ input[type=checkbox] { accent-color: var(--accent); }
 .hotlines li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
 .hotlines a { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--l3); text-decoration: none; }
 #windyFrame { width: 100%; height: min(560px, calc(100dvh - 170px)); border: 0; border-radius: 8px; background: #0b1322; }
+.cam-img img { max-height: 180px; object-fit: contain; background: #000; }
