@@ -876,9 +876,11 @@ function showEvent(e: FloodEvent, fly = false) {
 let dwrObjectUrl = '';
 // ---------- 🗺️ nationwide mode ----------
 let provGeo: { features: { properties: { code: string } }[] } | null = null;
+let provLoading = false;
 async function ensureProvinceLayer() {
-  if (provGeo) return;
-  provGeo = await (await fetch(provincesGeoUrl)).json();
+  if (provGeo || provLoading) return; // ticking twice quickly must not add the source twice
+  provLoading = true;
+  try { provGeo = await (await fetch(provincesGeoUrl)).json(); } finally { provLoading = false; }
   map.addSource('provinces', { type: 'geojson', data: provGeo as never, promoteId: 'code', attribution: 'Province boundaries: geoBoundaries / © OpenStreetMap contributors (ODbL)' });
   const lvl: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
   map.addLayer({ id: 'prov-fill', type: 'fill', source: 'provinces', maxzoom: AMP_ZOOM, layout: { visibility: nationOn ? 'visible' : 'none' }, paint: {
@@ -898,7 +900,7 @@ const ampStats = new Map<number, { over: number; near: number; stations: number;
 async function ensureAmphoeLayer() {
   if (ampGeo || ampLoading || !nationOn || map.getZoom() < AMP_ZOOM - 0.5) return;
   ampLoading = true;
-  ampGeo = await (await fetch(amphoeGeoUrl)).json();
+  try { ampGeo = await (await fetch(amphoeGeoUrl)).json(); } finally { ampLoading = false; } // a failed load retries on the next zoom
   for (const f of ampGeo!.features) ampBox.set(f.properties.id, bboxOf(f.geometry.coordinates));
   map.addSource('amphoe', { type: 'geojson', data: ampGeo as never, promoteId: 'id', attribution: 'District boundaries: geoBoundaries / Royal Thai Survey Dept., OCHA ROAP (CC BY 3.0 IGO)' });
   const lvl: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
@@ -965,7 +967,10 @@ function setNation(on: boolean, move = true) {
   apply();
   if (!move) return;
   popup.remove();
-  if (on) map.fitBounds([[97.3, 5.6], [105.7, 20.5]], { padding: 30, pitch: 0, duration: 1500 });
+  $('sidebar').classList.remove('open'); // on phones the panel covers the map; show the zoom-out/in that just happened
+  // Phones: the stats/search panels cover the top ~260 px and the legend the bottom, so keep the country clear of them.
+  const pad = innerWidth < 820 ? { top: 260, bottom: 130, left: 10, right: 10 } : { top: 30, bottom: 30, left: 30, right: 360 };
+  if (on) map.fitBounds([[97.3, 5.6], [105.7, 20.5]], { padding: pad, pitch: 0, duration: 1500 });
   else map.flyTo({ center: [100.56, 13.77], zoom: 10.6, pitch: 45, duration: 1500 });
 }
 function showProvinceByCode(code: string, at: maplibregl.LngLat) {

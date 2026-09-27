@@ -36,6 +36,50 @@ export default async () => {
   const bma = (await store.get('bma/latest', { type: 'json' })) as { fetchedAt: string } | null;
   const relaySince = Math.max(now - 3600_000, bma ? Date.parse(bma.fetchedAt) + BMA_FRESH_MS : 0);
 
+  // Slow, occasional refreshes run concurrently with the per-run sources: back to back they could pass the
+  // 30 s scheduled-function limit (e.g. the 10 MB dam file plus a slow TMD page).
+  // Dam figures are daily and only ship inside ThaiWater's 10 MB thailand_main, so refresh them every 3 h, not every run.
+  const dams = async () => {
+    const up = (await store.get('upstream', { type: 'json' })) as Upstream | null;
+    // (also refetch a blob saved before all dams were kept)
+    if (!up || now - Date.parse(up.fetchedAt) > 3 * 3600_000 || !up.dams.some((d) => d.cp === false)) {
+      try {
+        const list = parseDams(await getJson(`${TW}/thailand_main`));
+        if (list.length) await store.setJSON('upstream', { fetchedAt: new Date(now).toISOString(), dams: list } satisfies Upstream);
+      } catch (e) { console.error('dams failed:', e); }
+    }
+  };
+
+  // TMD warnings are issued a few times a day; hourly is plenty.
+  const warnings = async () => {
+    const tmd = (await store.get('tmd', { type: 'json' })) as TmdFeed | null;
+    if (!tmd || now - Date.parse(tmd.fetchedAt) > 3600_000) {
+      try {
+        const items = parseTmdWarnings(await getTmd(TMD_WARNINGS));
+        if (items.length) await store.setJSON('tmd', { fetchedAt: new Date(now).toISOString(), items } satisfies TmdFeed);
+      } catch (e) { console.error('tmd failed:', e); }
+    }
+  };
+
+  // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
+  const nation = async () => {
+    const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;
+    if (!prov || now - Date.parse(prov.fetchedAt) > 30 * 60_000) {
+      // Same pull also feeds the amphoe view: station and rain-gauge points (rain_24h nationwide is ~0.7 MB, fast).
+      const [wl, rain] = await Promise.allSettled([getJson(`${TW}/waterlevel_load`), getJson(`${TW}/rain_24h`)]);
+      try {
+        if (wl.status === 'rejected') throw wl.reason;
+        const rows = parseProvinces(wl.value.waterlevel_data.data, now);
+        if (rows.length) await store.setJSON('provinces', { fetchedAt: new Date(now).toISOString(), rows } satisfies Provinces);
+        const pts = parseNation(wl.value.waterlevel_data.data, rain.status === 'fulfilled' ? rain.value.data : [], now);
+        if (pts.wl.length) await store.setJSON('nation', { fetchedAt: new Date(now).toISOString(), ...pts } satisfies NationPoints);
+        if (rain.status === 'rejected') console.error('nation rain failed:', rain.reason);
+      } catch (e) { console.error('provinces failed:', e); }
+    }
+  };
+
+  const extras = Promise.allSettled([dams(), warnings(), nation()]);
+
   const results = await Promise.allSettled([
     // Only keep road readings from the last hour: ThaiWater's relay can stall and keep serving old values.
     getJson(`${TW}/flood_road`).then((d) => addFloodRoad(meta, b, d.data, relaySince)),
@@ -59,39 +103,7 @@ export default async () => {
     await store.setJSON(`day/${day}`, mergeDay(base, add));
   }
 
-  // Dam figures are daily and only ship inside ThaiWater's 10 MB thailand_main, so refresh them every 3 h, not every run.
-  const up = (await store.get('upstream', { type: 'json' })) as Upstream | null;
-  // (also refetch a blob saved before all dams were kept)
-  if (!up || now - Date.parse(up.fetchedAt) > 3 * 3600_000 || !up.dams.some((d) => d.cp === false)) {
-    try {
-      const dams = parseDams(await getJson(`${TW}/thailand_main`));
-      if (dams.length) await store.setJSON('upstream', { fetchedAt: new Date(now).toISOString(), dams } satisfies Upstream);
-    } catch (e) { console.error('dams failed:', e); }
-  }
-
-  // TMD warnings are issued a few times a day; hourly is plenty.
-  const tmd = (await store.get('tmd', { type: 'json' })) as TmdFeed | null;
-  if (!tmd || now - Date.parse(tmd.fetchedAt) > 3600_000) {
-    try {
-      const items = parseTmdWarnings(await getTmd(TMD_WARNINGS));
-      if (items.length) await store.setJSON('tmd', { fetchedAt: new Date(now).toISOString(), items } satisfies TmdFeed);
-    } catch (e) { console.error('tmd failed:', e); }
-  }
-
-  // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
-  const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;
-  if (!prov || now - Date.parse(prov.fetchedAt) > 30 * 60_000) {
-    // Same pull also feeds the amphoe view: station and rain-gauge points (rain_24h nationwide is ~0.7 MB, fast).
-    const [wl, rain] = await Promise.allSettled([getJson(`${TW}/waterlevel_load`), getJson(`${TW}/rain_24h`)]);
-    try {
-      if (wl.status === 'rejected') throw wl.reason;
-      const rows = parseProvinces(wl.value.waterlevel_data.data, now);
-      if (rows.length) await store.setJSON('provinces', { fetchedAt: new Date(now).toISOString(), rows } satisfies Provinces);
-      const pts = parseNation(wl.value.waterlevel_data.data, rain.status === 'fulfilled' ? rain.value.data : [], now);
-      await store.setJSON('nation', { fetchedAt: new Date(now).toISOString(), ...pts } satisfies NationPoints);
-      if (rain.status === 'rejected') console.error('nation rain failed:', rain.reason);
-    } catch (e) { console.error('provinces failed:', e); }
-  }
+  await extras; // started at the top, alongside the per-run sources
 
   for (const prefix of ['day/', 'bmaday/']) {
     const { blobs } = await store.list({ prefix });
