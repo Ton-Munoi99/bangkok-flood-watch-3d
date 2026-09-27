@@ -3,6 +3,8 @@
   publish = "dist"
 
 # Hardening. The CSP lists every host the page talks to; add a host here when adding a data source.
+# The sha256 in script-src is Netlify's own "Powered by Netlify" badge (inline script in its srcdoc iframe);
+# if Netlify changes the badge, the browser console names the new hash to use.
 # style 'unsafe-inline': the UI sets colours via style attributes. img-src https: covers Traffy/Longdo report photos.
 [[headers]]
   for = "/*"
@@ -11,4 +13,4 @@
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(self), camera=(), microphone=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api-v3.thaiwater.net https://publicapi.traffy.in.th https://event.longdo.com https://traffic.longdo.com https://telemetry.dwr.go.th https://tiles.openfreemap.org https://server.arcgisonline.com https://s3.amazonaws.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src https://embed.windy.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'sha256-mTJ4cJaTm2Gw95GeXEpZdvEEY9ybh6FZu1bwcNE7QlY='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api-v3.thaiwater.net https://publicapi.traffy.in.th https://event.longdo.com https://traffic.longdo.com https://telemetry.dwr.go.th https://tiles.openfreemap.org https://server.arcgisonline.com https://s3.amazonaws.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src https://embed.windy.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
