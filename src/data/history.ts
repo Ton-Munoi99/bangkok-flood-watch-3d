@@ -91,7 +91,8 @@ export class DayBuilder {
     }
   }
   report(id: string, lng: number, lat: number, iso: string, state: string) {
-    this.get(slot(Date.parse(iso)).day).reports[id] = [lng, lat, iso, state];
+    // ~11 m: enough to place a report on a street, not to pinpoint the reporter's house.
+    this.get(slot(Date.parse(iso)).day).reports[id] = [+lng.toFixed(4), +lat.toFixed(4), iso, state];
   }
 }
 

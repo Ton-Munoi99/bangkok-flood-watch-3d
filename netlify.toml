@@ -1,3 +1,13 @@
 [build]
   command = "npm run build"
   publish = "dist"
+
+# Basic hardening. No CSP yet: the page loads tiles, APIs and the Windy iframe from many hosts,
+# so a policy needs its own testing pass.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(self), camera=(), microphone=()"

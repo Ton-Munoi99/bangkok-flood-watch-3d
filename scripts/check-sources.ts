@@ -115,3 +115,7 @@ console.log('provinces ok');
   assert.deepStrictEqual([c.d1h, c.d24h], [0.05, 0.25]);
   console.log('trends ok');
 }
+
+// Reports kept in history are rounded to ~11 m.
+{ const b = new DayBuilder(); b.report('T', 100.629751, 13.789659, '2026-09-27T01:00:00.000Z', 'x');
+  assert.deepStrictEqual(b.days.get('2026-09-27')!.reports.T.slice(0, 2), [100.6298, 13.7897]); console.log('report rounding ok'); }
