@@ -6,7 +6,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
-  DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
+  BMA_FRESH_MS, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
   emptyDay, emptyMeta, mergeDay, parseDams, parseProvinces, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
@@ -30,10 +30,15 @@ export default async () => {
   const now = Date.now();
   const meta = ((await store.get('meta', { type: 'json' })) as Meta | null) ?? emptyMeta();
   const b = new DayBuilder();
+  // Road history must come from one source at a time, like the live page: the Mac's BMA push (~240 sensors)
+  // while it is fresh, ThaiWater's relay (a dozen) only when it isn't. Mixing them made history jump 60 -> 12 -> 60.
+  // So relay readings are kept only for times after the last push stopped counting as live.
+  const bma = (await store.get('bma/latest', { type: 'json' })) as { fetchedAt: string } | null;
+  const relaySince = Math.max(now - 3600_000, bma ? Date.parse(bma.fetchedAt) + BMA_FRESH_MS : 0);
 
   const results = await Promise.allSettled([
     // Only keep road readings from the last hour: ThaiWater's relay can stall and keep serving old values.
-    getJson(`${TW}/flood_road`).then((d) => addFloodRoad(meta, b, d.data, now - 3600_000)),
+    getJson(`${TW}/flood_road`).then((d) => addFloodRoad(meta, b, d.data, relaySince)),
     getJson(`${TW}/waterlevel_load?province_code=10`).then((d) => addCanal(meta, b, d.waterlevel_data.data)),
     getJson(`${TW}/rain_24h?province_code=10`).then((d) => addRain(meta, b, d.data)),
     getJson(`${TW}/canal_waterlevel`).then((d) => addBmaCanals(meta, b, d.data)),

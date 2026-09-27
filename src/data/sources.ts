@@ -4,7 +4,7 @@
 // live and snapshot data go through the same parser.
 
 import {
-  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, parseLatLng, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
+  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
   parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type Meta, type ProvinceSum, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
 export type { Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
@@ -118,7 +118,7 @@ export async function fetchRoadFlood(): Promise<Result<RoadFlood>> {
   // 2. Readings pushed by our Thai-side collector (scripts/collect-bma.ts -> /api/ingest, every 30 min).
   const pushed = await roadFromIngest().catch(() => null);
   const age = pushed ? Date.now() - Date.parse(pushed.fetchedAt) : Infinity;
-  if (pushed && age < 45 * 60_000) return { items: pushed.items, snapshot: false };
+  if (pushed && age < BMA_FRESH_MS) return { items: pushed.items, snapshot: false };
   // 3. ThaiWater's relay of the same sensors (it sometimes stalls, so only if under an hour old).
   const relayed = await roadFromThaiWater(Date.now() - 3600_000).catch(() => []);
   if (relayed.length) { roadVia = 'thaiwater'; return { items: relayed, snapshot: false }; }

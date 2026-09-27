@@ -28,6 +28,8 @@ export const emptyDay = (): DayFile => ({ road: {}, canal: {}, rain: {}, reports
 export const HISTORY_DAYS = 7;
 /** A road sensor that hasn't reported for this long is treated as offline, not as "0 cm". */
 export const SENSOR_SILENT_MS = 3 * 86400_000;
+/** BMA readings pushed by the Mac collector count as live this long (it runs every 30 min). */
+export const BMA_FRESH_MS = 45 * 60_000;
 
 const BKK_OFFSET = 7 * 3600 * 1000;
 /** Epoch ms -> Bangkok { day: "YYYY-MM-DD", bucket: "HH:MM" } floored to 10 minutes. */
