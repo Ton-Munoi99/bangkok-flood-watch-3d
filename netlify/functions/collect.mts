@@ -7,7 +7,7 @@ import tls from 'node:tls';
 import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
   BMA_FRESH_MS, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
-  emptyDay, emptyMeta, mergeDay, parseDams, parseProvinces, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type Provinces, type TmdFeed, type Upstream,
+  emptyDay, emptyMeta, mergeDay, parseDams, parseNation, parseProvinces, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type NationPoints, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
@@ -81,9 +81,15 @@ export default async () => {
   // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
   const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;
   if (!prov || now - Date.parse(prov.fetchedAt) > 30 * 60_000) {
+    // Same pull also feeds the amphoe view: station and rain-gauge points (rain_24h nationwide is ~0.7 MB, fast).
+    const [wl, rain] = await Promise.allSettled([getJson(`${TW}/waterlevel_load`), getJson(`${TW}/rain_24h`)]);
     try {
-      const rows = parseProvinces((await getJson(`${TW}/waterlevel_load`)).waterlevel_data.data, now);
+      if (wl.status === 'rejected') throw wl.reason;
+      const rows = parseProvinces(wl.value.waterlevel_data.data, now);
       if (rows.length) await store.setJSON('provinces', { fetchedAt: new Date(now).toISOString(), rows } satisfies Provinces);
+      const pts = parseNation(wl.value.waterlevel_data.data, rain.status === 'fulfilled' ? rain.value.data : [], now);
+      await store.setJSON('nation', { fetchedAt: new Date(now).toISOString(), ...pts } satisfies NationPoints);
+      if (rain.status === 'rejected') console.error('nation rain failed:', rain.reason);
     } catch (e) { console.error('provinces failed:', e); }
   }
 

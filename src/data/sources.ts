@@ -5,9 +5,9 @@
 
 import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
-  parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type ProvinceSum, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
+  parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
-export type { DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
+export type { NationPoints, DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
 export { bkkMs, parseLatLng };
 
 export type Level = 0 | 1 | 2 | 3; // ปกติ / เฝ้าระวัง / เสี่ยงสูง / ท่วมหนัก
@@ -413,15 +413,16 @@ export async function fetchTrafficIndex(): Promise<number | null> {
 // ---------- Upstream (น้ำเหนือ): dams via our collector, Chao Phraya Dam outflow (C.13) live from ThaiWater ----------
 // Also carries the other slow-changing collector blobs: TMD warnings (tmd.go.th has no CORS and a broken TLS chain)
 // and the per-province summary (the nationwide feed is too big to fetch in the browser).
-export interface UpstreamView { dams: Dam[]; c13: { discharge: number; time: string } | null; tmd: TmdWarning[]; provinces: Provinces | null }
+export interface UpstreamView { dams: Dam[]; c13: { discharge: number; time: string } | null; tmd: TmdWarning[]; provinces: Provinces | null; nation: NationPoints | null }
 export async function fetchUpstream(): Promise<UpstreamView> {
-  const [up, load, tmd, provinces] = await Promise.all([
+  const [up, load, tmd, provinces, nation] = await Promise.all([
     getJson('/api/history/upstream').catch(() => null) as Promise<Upstream | null>,
     getJson(`${TW_BASE}/waterlevel_load?province_code=18`).catch(() => null),
     getJson('/api/history/tmd').catch(() => null) as Promise<TmdFeed | null>,
     getJson('/api/history/provinces').catch(() => null) as Promise<Provinces | null>,
+    getJson('/api/history/nation').catch(() => null) as Promise<NationPoints | null>,
   ]);
   // Only warnings dated within the last 3 days; the page keeps old ones listed long after they expire.
   const since = slot(Date.now() - 3 * 86400_000).day;
-  return { dams: up?.dams ?? [], c13: load ? parseC13(load) : null, tmd: (tmd?.items ?? []).filter((w) => w.day && w.day >= since), provinces };
+  return { dams: up?.dams ?? [], c13: load ? parseC13(load) : null, tmd: (tmd?.items ?? []).filter((w) => w.day && w.day >= since), provinces, nation };
 }

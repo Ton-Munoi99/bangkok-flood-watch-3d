@@ -6,7 +6,8 @@ import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import provincesGeoUrl from '../data/th_provinces.geojson?url';
-import { provinceLevel } from './data/history';
+import amphoeGeoUrl from '../data/th_amphoe.geojson?url';
+import { amphoeLevel, bboxOf, inPolys, provinceLevel, type Ring as PolyRing } from './data/history';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, type DohFlood, type DwrCamera, type Trend,
@@ -78,6 +79,9 @@ const T = {
     nationBtn: '🗺️ ต่างจังหวัด', nationTip: 'แสดงสีรายจังหวัด ทางหลวง และกล้องทั่วประเทศ (ปิด = เฉพาะ กทม.)',
     provLegend: 'สีจังหวัด (แม่น้ำ/ทางหลวง ไม่ใช่เซนเซอร์ถนนแบบ กทม.): แดง = สถานีล้นตลิ่ง 3 จุดขึ้นไป · ส้ม = ล้นตลิ่ง 1–2 จุด หรือทางหลวงผ่านไม่ได้ · เหลือง = ใกล้ล้นตลิ่ง หรือทางหลวงมีน้ำท่วม · เขียว = สถานีปกติ · เทา = ไม่มีรายงานใน 6 ชม.',
     provNoData: 'ไม่มีสถานีรายงานใน 6 ชม.',
+    ampLegend: 'ซูมเข้าจะเห็นรายอำเภอ: แดง = สถานีล้นตลิ่ง หรือทางหลวงผ่านไม่ได้ · ส้ม = ใกล้ล้นตลิ่ง ทางหลวงมีน้ำท่วม หรือฝนตกหนักมาก (>90 มม./24 ชม.) · เหลือง = ฝนตกหนัก (35–90 มม.) · เขียว = ปกติ · เทา = ไม่มีสถานีในอำเภอ (ไม่ได้แปลว่าไม่ท่วม)',
+    ampTitle: 'อำเภอ', ampStations: 'สถานีวัดน้ำ', ampRain: 'ฝนสูงสุด 24 ชม.', ampNoStation: 'ไม่มีสถานีวัดน้ำหรือวัดฝนในอำเภอนี้ จึงไม่มีสี (ไม่ได้แปลว่าไม่ท่วม)',
+    ampStRow: (n: number, o: number, nr: number) => `${n} สถานี · ล้นตลิ่ง ${o} · ใกล้ล้น ${nr}`, ampNote: 'จากสถานีโทรมาตร ThaiWater ฝน และกรมทางหลวง ภายใน 6 ชม.',
     dohTitle: (n: number, x: number) => `🛣️ ทางหลวงน้ำท่วม (${n}) · ผ่านไม่ได้ ${x}`, dohNo: 'ผ่านไม่ได้', dohYes: 'ผ่านได้', dohRoad: 'ทางหลวงหมายเลข',
     dohDepth: 'ระดับน้ำ', dohKm: 'ช่วง กม.', dohCause: 'สาเหตุ', dohDetour: 'ทางเลี่ยง', dohSide: 'ช่องทาง', dohOpen: 'ดูที่ระบบกรมทางหลวง',
     dohNote: 'รายงานโดยเจ้าหน้าที่กรมทางหลวง เฉพาะทางหลวงแผ่นดิน ไม่รวมถนนในเมือง', nearDoh: 'ทางหลวงน้ำท่วม',
@@ -178,6 +182,9 @@ const T = {
     nationBtn: '🗺️ Provinces', nationTip: 'Show province colours, highways and cameras nationwide (off = Bangkok only)',
     provLegend: 'Province colours (rivers/highways, not Bangkok-style road sensors): red = 3+ stations over bank · orange = 1–2 over bank or an impassable highway · yellow = near bank or a flooded highway · green = stations normal · grey = no report in 6 h',
     provNoData: 'No station reported in the last 6 h',
+    ampLegend: 'Zoom in for districts (amphoe): red = a station over bank or an impassable highway · orange = near bank, a flooded highway or very heavy rain (>90 mm/24 h) · yellow = heavy rain (35–90 mm) · green = normal · grey = no gauge in the district (not "no flooding")',
+    ampTitle: 'District', ampStations: 'Water-level stations', ampRain: 'Max rain 24 h', ampNoStation: 'No water-level or rain gauge in this district, so no colour (not "no flooding")',
+    ampStRow: (n: number, o: number, nr: number) => `${n} stations · over bank ${o} · near ${nr}`, ampNote: 'From ThaiWater gauges, rain gauges and DOH highways, last 6 h',
     dohTitle: (n: number, x: number) => `🛣️ Flooded highways (${n}) · impassable ${x}`, dohNo: 'Impassable', dohYes: 'Passable', dohRoad: 'Highway',
     dohDepth: 'Water depth', dohKm: 'Km', dohCause: 'Cause', dohDetour: 'Detour', dohSide: 'Lanes', dohOpen: 'View on DOH system',
     dohNote: 'Reported by Dept. of Highways staff · national highways only, not city streets', nearDoh: 'Flooded highways',
@@ -485,7 +492,7 @@ map.on('load', async () => {
   });
 
   // Click priority: most specific layer first.
-  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill', 'prov-fill'];
+  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill', 'amp-fill', 'prov-fill'];
   map.on('click', (e) => {
     // A few pixels of slack so small markers are easy to hit (especially by finger).
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
@@ -498,6 +505,7 @@ map.on('load', async () => {
     else if (f.layer.id === 'rain') showRain(rain.items[i]);
     else if (f.layer.id === 'cameras') showCamera(cameras[i]);
     else if (f.layer.id === 'dwr-cams') showDwrCamera(dwrShown()[i]);
+    else if (f.layer.id === 'amp-fill') showAmphoe(Number(f.id), e.lngLat);
     else if (f.layer.id === 'prov-fill') showProvinceByCode(String(f.id), e.lngLat);
     else if (f.layer.id === 'doh') showDoh(dohLive()[i]);
     else if (f.layer.id === 'events') showEvent(events.items[i]);
@@ -791,7 +799,7 @@ function render() {
       <div class="t"><span>${esc(lang === 'th' ? p.th : p.en)}</span><span>${p.over}/${p.n}</span></div><div class="s">${L.provRow(p.over, p.near, p.n)}</div></button>`);
     const sum = (k: 'over' | 'n') => prov.reduce((a, p) => a + p[k], 0);
     html += section('provinces', L.provTitle(sum('over'), sum('n'), prov.filter((p) => p.over).length),
-      `<div class="empty" style="margin:0 0 6px">${L.provLegend}</div>` + (items.length ? list(items, 5, L.more) : `<div class="empty">${L.provNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.provNote}</div>`);
+      `<div class="empty" style="margin:0 0 6px">${L.provLegend}</div><div class="empty" style="margin:0 0 6px">${L.ampLegend}</div>` + (items.length ? list(items, 5, L.more) : `<div class="empty">${L.provNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.provNote}</div>`);
   }
 
   // Last, as asked: roads staff reported as impassable for small cars.
@@ -873,13 +881,67 @@ async function ensureProvinceLayer() {
   provGeo = await (await fetch(provincesGeoUrl)).json();
   map.addSource('provinces', { type: 'geojson', data: provGeo as never, promoteId: 'code', attribution: 'Province boundaries: geoBoundaries / © OpenStreetMap contributors (ODbL)' });
   const lvl: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
-  map.addLayer({ id: 'prov-fill', type: 'fill', source: 'provinces', layout: { visibility: nationOn ? 'visible' : 'none' }, paint: {
+  map.addLayer({ id: 'prov-fill', type: 'fill', source: 'provinces', maxzoom: AMP_ZOOM, layout: { visibility: nationOn ? 'visible' : 'none' }, paint: {
     'fill-color': ['match', lvl, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], NO_DATA_COLOR],
     'fill-opacity': ['interpolate', ['linear'], ['zoom'], 6, ['case', ['<', lvl, 0], 0.15, 0.4], 10, ['case', ['<', lvl, 0], 0.05, 0.15]],
   } }, 'district-fill');
-  map.addLayer({ id: 'prov-line', type: 'line', source: 'provinces', layout: { visibility: nationOn ? 'visible' : 'none' },
+  map.addLayer({ id: 'prov-line', type: 'line', source: 'provinces', maxzoom: AMP_ZOOM, layout: { visibility: nationOn ? 'visible' : 'none' },
     paint: { 'line-color': '#56627a', 'line-width': 0.8, 'line-opacity': 0.7 } }, 'district-fill');
   colourProvinces();
+}
+// Amphoe (district) view: loaded the first time someone zooms in with 🗺️ on; replaces province colours from AMP_ZOOM.
+const AMP_ZOOM = 7.5;
+type AmpFeature = { properties: { id: number; en: string; th: string; prov: string; code: string }; geometry: { coordinates: PolyRing[][] } };
+let ampGeo: { features: AmpFeature[] } | null = null, ampLoading = false;
+const ampBox = new Map<number, [number, number, number, number]>();
+const ampStats = new Map<number, { over: number; near: number; stations: number; rainMax: number | null; hwImpassable: number; hw: number }>();
+async function ensureAmphoeLayer() {
+  if (ampGeo || ampLoading || !nationOn || map.getZoom() < AMP_ZOOM - 0.5) return;
+  ampLoading = true;
+  ampGeo = await (await fetch(amphoeGeoUrl)).json();
+  for (const f of ampGeo!.features) ampBox.set(f.properties.id, bboxOf(f.geometry.coordinates));
+  map.addSource('amphoe', { type: 'geojson', data: ampGeo as never, promoteId: 'id', attribution: 'District boundaries: geoBoundaries / Royal Thai Survey Dept., OCHA ROAP (CC BY 3.0 IGO)' });
+  const lvl: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
+  map.addLayer({ id: 'amp-fill', type: 'fill', source: 'amphoe', minzoom: AMP_ZOOM, layout: { visibility: nationOn ? 'visible' : 'none' }, paint: {
+    'fill-color': ['match', lvl, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], NO_DATA_COLOR],
+    'fill-opacity': ['interpolate', ['linear'], ['zoom'], AMP_ZOOM, ['case', ['<', lvl, 0], 0.12, 0.4], 12, ['case', ['<', lvl, 0], 0.04, 0.12]],
+  } }, 'district-fill');
+  map.addLayer({ id: 'amp-line', type: 'line', source: 'amphoe', minzoom: AMP_ZOOM, layout: { visibility: nationOn ? 'visible' : 'none' },
+    paint: { 'line-color': '#56627a', 'line-width': 0.6, 'line-opacity': 0.6 } }, 'district-fill');
+  colourAmphoe();
+}
+let ampKey = '';
+function colourAmphoe() {
+  if (!ampGeo) return;
+  const n = historyAt == null ? upstream?.nation : null;
+  // ~900 polygons × ~5,000 points is ~0.1 s, and apply() runs once per arriving source: only redo it when the inputs change.
+  const key = `${n?.fetchedAt}|${doh.asOf}|${doh.items.length}|${historyAt}`;
+  if (key === ampKey) return;
+  ampKey = key;
+  for (const f of ampGeo.features) {
+    const id = f.properties.id, bb = ampBox.get(id)!, polys = f.geometry.coordinates;
+    const hit = <T extends number[]>(pts: T[]) => pts.filter((p) => inPolys(p[0], p[1], polys, bb));
+    const wl = hit(n?.wl ?? []), rain = hit(n?.rain ?? []);
+    const hw = historyAt == null ? doh.items.filter((d) => inPolys(d.lng, d.lat, polys, bb)) : [];
+    const st = { over: wl.filter((p) => p[2] === 5).length, near: wl.filter((p) => p[2] === 4).length, stations: wl.length,
+      rainMax: rain.length ? Math.max(...rain.map((p) => p[2])) : null, hwImpassable: hw.filter((d) => d.impassable).length, hw: hw.length };
+    ampStats.set(id, st);
+    map.setFeatureState({ source: 'amphoe', id }, { level: amphoeLevel(st) });
+  }
+}
+function showAmphoe(id: number, at: maplibregl.LngLat) {
+  const L = t(), f = ampGeo?.features.find((x) => x.properties.id === id), st = ampStats.get(id);
+  if (!f || !st) return;
+  const p = f.properties;
+  const provName = p.prov || upstream?.provinces?.rows.find((r) => r.code === p.code)?.th || '';
+  const name = lang === 'th' ? p.th || p.en : p.en;
+  const lvl = amphoeLevel(st);
+  open(at, `<b>${L.ampTitle} ${esc(name)}</b>${provName ? ` · ${esc(provName)}` : ''}` +
+    (lvl < 0 ? `<div class="empty">${L.ampNoStation}</div>` :
+      (st.stations ? row(L.ampStations, L.ampStRow(st.stations, st.over, st.near)) : '') +
+      (st.rainMax != null ? row(L.ampRain, `${st.rainMax} mm`) : '') +
+      (st.hw ? row(`🛣️ ${L.nearDoh}`, `${st.hw} · ${L.dohNo} ${st.hwImpassable}`) : '')) +
+    `<div class="empty" style="margin-top:4px">${L.ampNote}</div>`);
 }
 function colourProvinces() {
   if (!provGeo) return;
@@ -889,6 +951,7 @@ function colourProvinces() {
     const level = historyAt == null ? provinceLevel(r, r ? doh.items.filter((d) => d.province === r.th) : []) : -1;
     map.setFeatureState({ source: 'provinces', id: f.properties.code }, { level });
   }
+  colourAmphoe();
 }
 function setNation(on: boolean, move = true) {
   nationOn = on;
@@ -896,7 +959,8 @@ function setNation(on: boolean, move = true) {
   $<HTMLInputElement>('lyNation').checked = on;
   $('nationLbl').classList.toggle('on', on);
   if (on) ensureProvinceLayer();
-  for (const l of ['prov-fill', 'prov-line']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
+  if (on) ensureAmphoeLayer();
+  for (const l of ['prov-fill', 'prov-line', 'amp-fill', 'amp-line']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
   setData('dwr-cams', fc(dwrShown(), (x) => [x.lng, x.lat], () => ({})));
   apply();
   if (!move) return;
@@ -1071,6 +1135,7 @@ function wireControls() {
   toggle('lyCams', (on) => setVis(['cameras'], on));
   toggle('lyDwr', (on) => setVis(['dwr-cams'], on));
   toggle('lyDoh', (on) => setVis(['doh'], on));
+  map.on('zoomend', () => { ensureAmphoeLayer(); });
   $<HTMLInputElement>('lyNation').addEventListener('change', (e) => setNation((e.target as HTMLInputElement).checked));
   toggle('lyEvents', (on) => setVis(['events'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));

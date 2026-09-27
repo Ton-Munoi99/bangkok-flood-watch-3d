@@ -1,10 +1,10 @@
-// GET /api/history/meta | /api/history/upstream | /api/history/tmd | /api/history/provinces | /api/history/doh | /api/history/YYYY-MM-DD — serves what collect.mts stored.
+// GET /api/history/meta | /api/history/upstream | /api/history/tmd | /api/history/provinces | /api/history/doh | /api/history/nation | /api/history/YYYY-MM-DD — serves what collect.mts stored.
 import { getStore } from '@netlify/blobs';
 import { emptyDay, mergeDay, slot, type DayFile } from '../../src/data/history.ts';
 
 export default async (_req: Request, context: { params: Record<string, string> }) => {
   const key = context.params.key ?? '';
-  if (!/^(meta|upstream|tmd|provinces|doh|\d{4}-\d{2}-\d{2})$/.test(key)) return new Response('bad key', { status: 400 });
+  if (!/^(meta|upstream|tmd|provinces|doh|nation|\d{4}-\d{2}-\d{2})$/.test(key)) return new Response('bad key', { status: 400 });
 
   const store = getStore('history');
   let body: string | null;

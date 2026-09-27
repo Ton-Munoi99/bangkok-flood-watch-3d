@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, provinceLevel } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, type Ring } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -143,3 +143,25 @@ assert.deepStrictEqual([
   provinceLevel({ n: 5, over: 0, near: 0 }, [{ impassable: true }]),
 ], [3, 2, 1, 0, -1, 1, 2]);
 console.log('province level ok');
+
+// Amphoe helpers: point-in-polygon with a hole; colour rules.
+{
+  const sq: Ring[][] = [[[[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]], [[1, 1], [2, 1], [2, 2], [1, 2], [1, 1]]]];
+  assert.deepStrictEqual([inPolys(3, 3, sq), inPolys(1.5, 1.5, sq), inPolys(5, 1, sq, bboxOf(sq))], [true, false, false]);
+  const z = { over: 0, near: 0, stations: 0, rainMax: null, hwImpassable: 0, hw: 0 };
+  assert.deepStrictEqual([amphoeLevel({ ...z, over: 1 }), amphoeLevel({ ...z, hw: 1 }), amphoeLevel({ ...z, rainMax: 95 }), amphoeLevel({ ...z, rainMax: 40 }),
+    amphoeLevel({ ...z, rainMax: 2 }), amphoeLevel({ ...z, stations: 3 }), amphoeLevel(z)], [3, 2, 2, 1, 0, 0, -1]);
+  console.log('amphoe ok');
+}
+
+// Nation points: stale readings dropped, compact tuples.
+{
+  const now = Date.parse('2026-09-27T12:00:00+07:00');
+  const st = { tele_station_lat: 14.123456, tele_station_long: 100.654321 };
+  const n = parseNation(
+    [{ waterlevel_datetime: '2026-09-27 11:00', situation_level: 5, station: st, geocode: { province_code: '14', province_name: { th: 'x', en: 'x' } } },
+     { waterlevel_datetime: '2026-09-26 11:00', situation_level: 5, station: st, geocode: { province_code: '14', province_name: { th: 'x', en: 'x' } } }] as never,
+    [{ rain_24h: 95.5, rainfall_datetime: '2026-09-27 11:30', station: st }, { rain_24h: null, rainfall_datetime: '2026-09-27 11:30', station: st }], now);
+  assert.deepStrictEqual(n, { wl: [[100.6543, 14.1235, 5]], rain: [[100.6543, 14.1235, 95.5]] });
+  console.log('nation points ok');
+}

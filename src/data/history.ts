@@ -369,3 +369,42 @@ export function provinceLevel(p: { n: number; over: number; near: number } | und
   const road = hw.some((h) => h.impassable) ? 2 : hw.length ? 1 : -1;
   return Math.max(st, road) as -1 | 0 | 1 | 2 | 3;
 }
+
+// ---------- point-in-polygon for the amphoe view (build script + browser) ----------
+export type Ring = [number, number][];
+/** Even-odd rule over all rings (holes included), after a cheap bbox reject. */
+export function inPolys(x: number, y: number, polys: Ring[][], bbox?: [number, number, number, number]) {
+  if (bbox && (x < bbox[0] || y < bbox[1] || x > bbox[2] || y > bbox[3])) return false;
+  let inside = false;
+  for (const poly of polys) for (const r of poly) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      if ((r[i][1] > y) !== (r[j][1] > y) && x < ((r[j][0] - r[i][0]) * (y - r[i][1])) / (r[j][1] - r[i][1]) + r[i][0]) inside = !inside;
+    }
+  }
+  return inside;
+}
+export const bboxOf = (polys: Ring[][]): [number, number, number, number] => {
+  const pts = polys.flat(2);
+  return [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
+};
+
+/** Amphoe colour (0..3, -1 no data). Stations/highways as for provinces, plus TMD's daily rain classes
+ *  (heavy 35.1–90 mm, very heavy > 90 mm per 24 h). */
+export function amphoeLevel(a: { over: number; near: number; stations: number; rainMax: number | null; hwImpassable: number; hw: number }): -1 | 0 | 1 | 2 | 3 {
+  if (a.over || a.hwImpassable) return 3;
+  if (a.near || a.hw || (a.rainMax ?? 0) > 90) return 2;
+  if ((a.rainMax ?? 0) > 35) return 1;
+  return a.stations || a.rainMax != null ? 0 : -1;
+}
+
+/** Nationwide points for the amphoe view, kept compact: [lng, lat, situation 1–5] and [lng, lat, mm in 24 h].
+ *  Readings older than 6 h are dropped (a silent gauge must not colour an amphoe). */
+export interface NationPoints { fetchedAt: string; wl: [number, number, number][]; rain: [number, number, number][] }
+export function parseNation(wlRows: TwNationRow[], rainRows: { rain_24h: number | null; rainfall_datetime: string; station: { tele_station_lat: number; tele_station_long: number } }[], now: number) {
+  const fresh = (t: string) => now - bkkMs(t) <= 6 * 3600_000;
+  const xy = (s: { tele_station_lat: number; tele_station_long: number }) => [+Number(s?.tele_station_long).toFixed(4), +Number(s?.tele_station_lat).toFixed(4)] as const;
+  return {
+    wl: wlRows.filter((r) => r.situation_level && fresh(r.waterlevel_datetime) && r.station?.tele_station_lat).map((r) => [...xy(r.station), Number(r.situation_level)] as [number, number, number]),
+    rain: rainRows.filter((r) => r.rain_24h != null && fresh(r.rainfall_datetime) && r.station?.tele_station_lat).map((r) => [...xy(r.station), Number(r.rain_24h)] as [number, number, number]),
+  };
+}
