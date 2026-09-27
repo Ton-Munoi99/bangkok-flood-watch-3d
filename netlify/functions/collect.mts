@@ -7,11 +7,11 @@ import tls from 'node:tls';
 import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
   BMA_FRESH_MS, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
-  emptyDay, emptyMeta, mergeDay, parseDams, parseProvinces, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type Provinces, type TmdFeed, type Upstream,
+  emptyDay, emptyMeta, mergeDay, parseDams, parseDoh, parseProvinces, DOH_DASHBOARD, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type DohFeed, type Meta, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
-  const r = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  const r = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { 'user-agent': 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)' } });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
 };
@@ -76,6 +76,13 @@ export default async () => {
       if (items.length) await store.setJSON('tmd', { fetchedAt: new Date(now).toISOString(), items } satisfies TmdFeed);
     } catch (e) { console.error('tmd failed:', e); }
   }
+
+  // Dept. of Highways flooded sections, every run (incidents open and close within hours). 14 days back catches long-running ones.
+  try {
+    const q = new URLSearchParams({ start: slot(now - 14 * 86400_000).day, end: slot(now).day });
+    const items = parseDoh(await getJson(`${DOH_DASHBOARD}?${q}`));
+    await store.setJSON('doh', { fetchedAt: new Date(now).toISOString(), items } satisfies DohFeed);
+  } catch (e) { console.error('doh failed:', e); }
 
   // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
   const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;

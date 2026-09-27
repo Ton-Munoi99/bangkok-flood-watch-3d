@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, type DwrCamera, type Trend,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, type DohFlood, type DwrCamera, type Trend,
   fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type Dam, type FloodEvent, type ProvinceSum, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
@@ -72,6 +72,10 @@ const T = {
     lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
     impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
     byLabel: { doh: 'เจ้าหน้าที่กรมทางหลวง', itic: 'เจ้าหน้าที่ iTIC', public: 'ผู้ใช้แอป iTIC' } as Record<string, string>, events: 'เหตุการณ์',
+    srcDoh: 'ทางหลวง: กรมทางหลวง (HDMS)', lyDoh: 'ทางหลวงน้ำท่วม กรมทางหลวง (ทั่วประเทศ)',
+    dohTitle: (n: number, x: number) => `🛣️ ทางหลวงน้ำท่วม (${n}) · ผ่านไม่ได้ ${x}`, dohNo: 'ผ่านไม่ได้', dohYes: 'ผ่านได้', dohRoad: 'ทางหลวงหมายเลข',
+    dohDepth: 'ระดับน้ำ', dohKm: 'ช่วง กม.', dohCause: 'สาเหตุ', dohDetour: 'ทางเลี่ยง', dohSide: 'ช่องทาง', dohOpen: 'ดูที่ระบบกรมทางหลวง',
+    dohNote: 'รายงานโดยเจ้าหน้าที่กรมทางหลวง เฉพาะทางหลวงแผ่นดิน ไม่รวมถนนในเมือง', nearDoh: 'ทางหลวงน้ำท่วม',
     srcEvents: 'เหตุการณ์: iTIC / Longdo Event', srcTitle: 'แหล่งข้อมูล',
     srcCams: 'กล้อง: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง',
     srcDistricts: 'ขอบเขตเขต: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: '🚦 จราจร', trafficTipIdx: 'ดัชนีการจราจร กทม. 0–10 จาก Longdo Traffic (ยิ่งสูงยิ่งติด)',
@@ -165,6 +169,10 @@ const T = {
     lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
     impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
     byLabel: { doh: 'DOH staff', itic: 'iTIC staff', public: 'iTIC app user' } as Record<string, string>, events: 'incidents',
+    srcDoh: 'Highways: Dept. of Highways (HDMS)', lyDoh: 'Flooded highways, Dept. of Highways (nationwide)',
+    dohTitle: (n: number, x: number) => `🛣️ Flooded highways (${n}) · impassable ${x}`, dohNo: 'Impassable', dohYes: 'Passable', dohRoad: 'Highway',
+    dohDepth: 'Water depth', dohKm: 'Km', dohCause: 'Cause', dohDetour: 'Detour', dohSide: 'Lanes', dohOpen: 'View on DOH system',
+    dohNote: 'Reported by Dept. of Highways staff · national highways only, not city streets', nearDoh: 'Flooded highways',
     srcEvents: 'Incidents: iTIC / Longdo Event', srcTitle: 'Data sources',
     srcCams: 'Cameras: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / iTIC Foundation / DOH',
     srcDistricts: 'District boundaries: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: '🚦 Traffic', trafficTipIdx: 'Bangkok traffic index 0–10 from Longdo Traffic (higher = worse)',
@@ -258,6 +266,8 @@ const secOpen = (id: string) => openSecs.has(id);
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
 let cameras: Camera[] = [];
 let dwrCams: DwrCamera[] = [];
+let doh: Result<DohFlood> = { items: [], snapshot: false };
+const dohLive = () => (historyAt == null ? doh.items : []);
 // Live mode only: from the last ~26 h of history. Refetched at most every 20 min.
 let trends: Awaited<ReturnType<typeof fetchTrends>> = null, trendsAt = 0;
 const STUCK_ROAD_H = 6, STUCK_CANAL_H = 12;
@@ -395,6 +405,7 @@ map.on('load', async () => {
   map.addSource('events', { type: 'geojson', data: empty });
   map.addSource('cameras', { type: 'geojson', data: empty });
   map.addSource('dwr-cams', { type: 'geojson', data: empty });
+  map.addSource('doh', { type: 'geojson', data: empty });
   map.addSource('road', { type: 'geojson', data: empty });
 
   map.addLayer({
@@ -432,6 +443,13 @@ map.on('load', async () => {
     id: 'cameras', type: 'symbol', source: 'cameras', layout: { visibility: 'none', 'icon-image': 'cam-icon', 'icon-allow-overlap': true },
   });
   map.addLayer({
+    id: 'doh', type: 'circle', source: 'doh', layout: { 'circle-sort-key': ['case', ['get', 'x'], 1, 0] },
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 12, 8], 'circle-color': ['case', ['get', 'x'], LEVEL_COLORS[3], LEVEL_COLORS[2]],
+      'circle-stroke-width': 2, 'circle-stroke-color': '#fff',
+    },
+  });
+  map.addLayer({
     id: 'dwr-cams', type: 'symbol', source: 'dwr-cams', layout: { 'icon-image': 'dwr-icon', 'icon-allow-overlap': true },
   });
   map.addLayer({
@@ -453,7 +471,7 @@ map.on('load', async () => {
   });
 
   // Click priority: most specific layer first.
-  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'reports', 'rain', 'district-fill'];
+  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill'];
   map.on('click', (e) => {
     // A few pixels of slack so small markers are easy to hit (especially by finger).
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
@@ -466,6 +484,7 @@ map.on('load', async () => {
     else if (f.layer.id === 'rain') showRain(rain.items[i]);
     else if (f.layer.id === 'cameras') showCamera(cameras[i]);
     else if (f.layer.id === 'dwr-cams') showDwrCamera(dwrCams[i]);
+    else if (f.layer.id === 'doh') showDoh(dohLive()[i]);
     else if (f.layer.id === 'events') showEvent(events.items[i]);
     else showDistrict(districts.find((d) => d.code === f.id)!, e.lngLat);
   });
@@ -502,6 +521,7 @@ async function refresh(pending = fetchAll()) {
   if (historyAt != null) return showHistory(historyAt);
   $('refresh').setAttribute('disabled', '');
   fetchUpstream().then((v) => { upstream = v; render(); });
+  fetchDoh().then((v) => { doh = v; apply(); });
   if (Date.now() - trendsAt > 20 * 60_000) {
     trendsAt = Date.now();
     fetchTrends().then((tr) => { trends = tr; if (historyAt == null) apply(); });
@@ -564,6 +584,7 @@ function apply() {
   setData('rain', fc(rain.items, (r) => [r.lng, r.lat], (r) => ({ mm: r.mm })));
   setData('reports', fc(reports.items, (r) => [r.lng, r.lat], () => ({})));
   setData('events', fc(events.items, (e) => [e.lng, e.lat], (e) => ({ x: e.impassable })));
+  setData('doh', fc(dohLive(), (d) => [d.lng, d.lat], (d) => ({ x: d.impassable })));
   render();
 }
 
@@ -708,6 +729,11 @@ function render() {
   const latestEvents = [...events.items].sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
   html += section('events', `📍 ${L.eventsList} (${latestEvents.length})`,
     latestEvents.length ? list(latestEvents.map((e) => eventItem(e)), 10, L.traffyMore) : `<div class="empty">${events.stale ? L.unavailable : L.eventsEmpty}</div>`);
+  const dohItems = [...dohLive()].sort((a, b) => +b.impassable - +a.impassable || (b.cm ?? 0) - (a.cm ?? 0));
+  if (dohItems.length) html += section('doh', L.dohTitle(dohItems.length, dohItems.filter((d) => d.impassable).length),
+    `<div class="empty" style="margin:0 0 6px">${L.dohNote}</div>` + list(dohItems.map((d) => `<button class="item${d.impassable ? ' alert' : ''}" style="--c:${d.impassable ? LEVEL_COLORS[3] : LEVEL_COLORS[2]}" data-doh="${dohLive().indexOf(d)}">
+      <div class="t"><span>${L.dohRoad} ${esc(Number(d.road) || d.road)} ${esc(d.section)}</span><span>${d.cm != null ? `${d.cm} cm` : ''}</span></div>
+      <div class="s">${[esc(d.province), esc(d.amphoe), d.impassable ? `🚫 ${L.dohNo}` : L.dohYes, d.start && bkkTime(d.start)].filter(Boolean).join(' · ')}</div></button>`), 5, L.more));
 
   // Latest citizen reports — clickable so the purple dots can be found from the list too.
   const latestReports = [...reports.items].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)).slice(0, 60);
@@ -756,10 +782,10 @@ function render() {
   $('sideBody').innerHTML = html;
 
   // Source status (live vs snapshot) — snapshot data must always be labelled.
-  const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports], [L.srcEvents, events]];
+  const srcs: [string, Result<unknown>][] = [[L.srcRoad, road], [L.srcCanal, canals], [L.srcRain, rain], [L.srcTraffy, reports], [L.srcEvents, events], ...(historyAt == null ? [[L.srcDoh, doh] as [string, Result<unknown>]] : [])];
   const srcUrl = new Map<string, string>([
     [L.srcRoad, 'https://weather.bangkok.go.th/flood/'], [L.srcCanal, 'https://www.thaiwater.net'], [L.srcRain, 'https://www.thaiwater.net'],
-    [L.srcTraffy, 'https://share.traffy.in.th/teamchadchart'], [L.srcEvents, 'https://live.iticfoundation.org/'],
+    [L.srcTraffy, 'https://share.traffy.in.th/teamchadchart'], [L.srcEvents, 'https://live.iticfoundation.org/'], [L.srcDoh, 'https://hdms.doh.go.th/dashboard'],
   ]);
   const link = (n: string) => `<a href="${srcUrl.get(n)}" target="_blank" rel="noopener">${esc(n)}</a>`;
   const asOf = (r: Result<unknown>) => {
@@ -823,6 +849,15 @@ function showEvent(e: FloodEvent, fly = false) {
     `<div class="r"><a href="https://live.iticfoundation.org/" target="_blank" rel="noopener">${L.evOpen} ↗</a></div>` + nearCameraRow(e), fly);
 }
 let dwrObjectUrl = '';
+function showDoh(d: DohFlood, fly = false) {
+  const L = t();
+  open([d.lng, d.lat], `<b>🛣️ ${L.dohRoad} ${esc(Number(d.road) || d.road)} ${esc(d.section)}</b>` +
+    row(L.status, `<span style="color:${d.impassable ? LEVEL_COLORS[3] : LEVEL_COLORS[2]}">${d.impassable ? `🚫 ${L.dohNo}${d.closure ? ` (${esc(d.closure)})` : ''}` : L.dohYes}</span>`) +
+    row(L.dohDepth, d.depth ? `${esc(d.depth)}${/^[\d.\s-]+$/.test(d.depth) ? ' cm' : ''}` : '-') + row(L.dohKm, esc(d.km)) + (d.direction ? row(L.dohSide, esc(d.direction)) : '') +
+    row(L.dwrProv, `${esc(d.province)} · ${esc(d.amphoe)}`) + (d.cause ? row(L.dohCause, esc(d.cause)) : '') + (d.detour ? row(L.dohDetour, esc(d.detour)) : '') +
+    (d.start ? row(L.since, bkkTime(d.start)) : '') +
+    `<div class="r"><a href="https://hdms.doh.go.th/dashboard" target="_blank" rel="noopener">${L.dohOpen} ↗</a></div>`, fly);
+}
 function showDwrCamera(c: DwrCamera) {
   const L = t();
   open([c.lng, c.lat], `<b>📷 ${esc(lang === 'th' ? c.th : c.en || c.th)}</b>` + row(L.camOwner, L.dwrAgency) +
@@ -916,8 +951,8 @@ function nearestSensorRow(d: District) {
 function showProvince(p: ProvinceSum) {
   const L = t();
   map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
-  const cams = dwrCams.filter((c) => c.province === p.th).length;
-  open([p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
+  const cams = dwrCams.filter((c) => c.province === p.th).length, hw = dohLive().filter((d) => d.province === p.th);
+  open([p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (hw.length ? row(`🛣️ ${L.nearDoh}`, `${hw.length} · ${L.dohNo} ${hw.filter((d) => d.impassable).length}`) : '') + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
     <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>`);
 }
 /** 📍 near me: everything currently loaded within 2 km of a point, shown in the map popup. */
@@ -934,7 +969,7 @@ function showNear(p: { lng: number; lat: number }) {
   open([p.lng, p.lat], `<b>📍 ${L.nearHere}</b>` + (d ? row(L.district, esc(dName(d))) : `<div class="empty">${L.nearOutside}</div>`) +
     (flooded.length ? row(L.nearRoad, L.nearPts(flooded.length, Math.max(...flooded.map((r) => r.cm)))) : '') +
     (canalHits.length ? row(L.nearCanal, canalHits.map((c) => esc(name(c))).slice(0, 3).join(', ')) : '') +
-    (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
+    (near(dohLive()).length ? row(L.nearDoh, String(near(dohLive()).length)) : '') + (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
     (any ? '' : `<div style="margin:4px 0">${L.nearNone}</div>`) +
     (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : ''), true);
 }
@@ -975,6 +1010,7 @@ function wireControls() {
   toggle('lyReports', (on) => setVis(['reports'], on));
   toggle('lyCams', (on) => setVis(['cameras'], on));
   toggle('lyDwr', (on) => setVis(['dwr-cams'], on));
+  toggle('lyDoh', (on) => setVis(['doh'], on));
   toggle('lyEvents', (on) => setVis(['events'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));
   toggle('lyBuild', (on) => setVis(['buildings-3d'], on));
@@ -1055,6 +1091,7 @@ function wireControls() {
     else if (b.dataset.report) showReport(reports.items[+b.dataset.report], true);
     else if (b.dataset.event) showEvent(events.items[+b.dataset.event], true);
     else if (b.dataset.district) showDistrict(districts.find((d) => d.code === b.dataset.district)!);
+    else if (b.dataset.doh) showDoh(dohLive()[+b.dataset.doh], true);
     else if (b.dataset.prov) showProvince(upstream!.provinces!.rows[+b.dataset.prov]);
     $('sidebar').classList.remove('open');
   });

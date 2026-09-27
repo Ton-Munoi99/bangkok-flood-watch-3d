@@ -5,9 +5,9 @@
 
 import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
-  parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type Meta, type ProvinceSum, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
+  parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type ProvinceSum, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
-export type { Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
+export type { DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
 export { bkkMs, parseLatLng };
 
 export type Level = 0 | 1 | 2 | 3; // ปกติ / เฝ้าระวัง / เสี่ยงสูง / ท่วมหนัก
@@ -270,6 +270,17 @@ async function reportsFromCollector(at: number): Promise<Report[]> {
 export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report>; events: Result<FloodEvent>; traffic: number | null }
 const WINDOW = 3600_000; // a reading counts as "current" at time T for up to an hour
 
+/** Dept. of Highways flooded sections, via our collector (every 10 min). Older than 1 h = labelled; older than 6 h = hidden. */
+export async function fetchDoh(): Promise<Result<DohFlood>> {
+  try {
+    const f = (await getJson('/api/history/doh')) as DohFeed;
+    const age = Date.now() - Date.parse(f.fetchedAt);
+    if (age > STALE_MS) return { items: [], snapshot: true, stale: true, asOf: f.fetchedAt };
+    return { items: f.items, snapshot: age > 3600_000, asOf: f.fetchedAt };
+  } catch (e) {
+    return { items: [], snapshot: false, stale: true, error: String(e) };
+  }
+}
 /** Live-mode trends from today's + yesterday's history files (null if history is unavailable). */
 export async function fetchTrends(now = Date.now()) {
   const get = (day: string) => fetch(`/api/history/${day}`, { signal: AbortSignal.timeout(20_000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);

@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -119,3 +119,19 @@ console.log('provinces ok');
 // Reports kept in history are rounded to ~11 m.
 { const b = new DayBuilder(); b.report('T', 100.629751, 13.789659, '2026-09-27T01:00:00.000Z', 'x');
   assert.deepStrictEqual(b.days.get('2026-09-27')!.reports.T.slice(0, 2), [100.6298, 13.7897]); console.log('report rounding ok'); }
+
+// DOH highways: open floods only, depth text parsed, red = impassable, personal fields dropped.
+{
+  const base = { latitude: '14.4', longitude: '99.7', incident_type_id: 1, end_date: null, province: 'กาญจนบุรี', amphoe: 'เลาขวัญ', road_code: '3443',
+    section_name: 'ตลาดใหม่ - ตลุงเหนือ', km_start: '24+000', km_end: '26+665', direction_text: 'ซ้ายทาง', cause_of_accident: 'ฝนตก',
+    lane_closure_color: '04D612', road_closure_text: null, bypass_desc: '', start_date: '2026-09-26T14:15:29Z', reporter_name: 'นาย ก', tel: '0812345678' };
+  const out = parseDoh([
+    { ...base, gid: 1, flood_level: '30-50' },
+    { ...base, gid: 2, flood_level: 'สูง 10 ซม.', lane_closure_color: 'D63031', road_closure_text: 'น้ำท่วมสูง' },
+    { ...base, gid: 3, flood_level: '20', end_date: '2026-09-27T01:00:00Z' },
+    { ...base, gid: 4, flood_level: '20', incident_type_id: 3 },
+  ] as never);
+  assert.deepStrictEqual(out.map((x) => [x.id, x.cm, x.impassable, x.km]), [['1', 50, false, '24+000 – 26+665'], ['2', 10, true, '24+000 – 26+665']]);
+  assert.ok(!JSON.stringify(out).includes('0812345678') && !JSON.stringify(out).includes('นาย ก'));
+  console.log('doh ok');
+}

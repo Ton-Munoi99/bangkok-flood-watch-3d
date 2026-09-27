@@ -330,3 +330,32 @@ export function sensorTrends(files: [day: string, f: DayFile][], kind: 'road' | 
   }
   return out;
 }
+
+// ---------- Dept. of Highways (กรมทางหลวง) flooded highway sections, nationwide (HDMS public dashboard) ----------
+// No CORS, so the collector fetches it. The feed also carries reporters' names, phone numbers and staff ids:
+// only the fields below are kept.
+export const DOH_DASHBOARD = 'https://hdms.doh.go.th/internal-api/public/dashboard';
+export interface DohFlood {
+  id: string; lng: number; lat: number; province: string; amphoe: string; road: string; section: string; km: string;
+  direction: string; depth: string; cm: number | null; cause: string; impassable: boolean; closure: string; detour: string; start: string;
+}
+export interface DohFeed { fetchedAt: string; items: DohFlood[] }
+interface DohRaw {
+  gid: number; latitude: string; longitude: string; incident_type_id: number; end_date: string | null; province: string; amphoe: string;
+  road_code: string; section_name: string; km_start: string; km_end: string; direction_text: string; flood_level: string | null;
+  cause_of_accident: string; lane_closure_color: string; road_closure_text: string | null; bypass_desc: string; start_date: string;
+}
+/** Open flood incidents (type 1). Red closure colour / a closure reason = impassable. */
+export function parseDoh(rows: DohRaw[]): DohFlood[] {
+  const s = (x: unknown) => String(x ?? '').replace(/\s+/g, ' ').trim();
+  return rows.filter((r) => r.incident_type_id === 1 && !r.end_date && Number(r.latitude) && Number(r.longitude)).map((r) => {
+    const n = s(r.flood_level).match(/\d+(\.\d+)?/g)?.map(Number);
+    return {
+      id: String(r.gid), lng: +Number(r.longitude).toFixed(5), lat: +Number(r.latitude).toFixed(5), province: s(r.province), amphoe: s(r.amphoe),
+      road: s(r.road_code), section: s(r.section_name), km: [s(r.km_start), s(r.km_end)].filter(Boolean).join(' – '), direction: s(r.direction_text),
+      depth: s(r.flood_level), cm: n?.length ? Math.max(...n) : null, cause: s(r.cause_of_accident).slice(0, 200),
+      impassable: s(r.lane_closure_color).toUpperCase() === 'D63031' || !!s(r.road_closure_text), closure: s(r.road_closure_text),
+      detour: s(r.bypass_desc).slice(0, 300), start: s(r.start_date),
+    };
+  });
+}
