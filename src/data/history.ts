@@ -298,3 +298,32 @@ export function parseProvinces(rows: TwNationRow[], now: number): ProvinceSum[] 
   return [...by.values()].map(({ sx, sy, ...p }) => ({ ...p, lng: +(sx / p.n).toFixed(3), lat: +(sy / p.n).toFixed(3) }))
     .sort((a, b) => b.over - a.over || b.near - a.near || a.th.localeCompare(b.th, 'th'));
 }
+
+// ---------- trends + flat-lined sensors, from the last ~26 h of day files ----------
+/** flatH: hours the latest reading has stayed exactly flatV. d1h/d24h: latest minus the reading ~1 h / ~24 h earlier. */
+export interface Trend { flatV: number; flatH: number; d1h: number | null; d24h: number | null }
+/** Hours a value must stay identical before we call the sensor possibly stuck (real water moves at least a cm). */
+export const STUCK_H = { road: 6, canal: 12 } as const;
+export function sensorTrends(files: [day: string, f: DayFile][], kind: 'road' | 'canal', now: number): Map<string, Trend> {
+  const series = new Map<string, [number, number][]>();
+  for (const [day, f] of files) for (const [b, vals] of Object.entries(f[kind])) {
+    const ms = slotMs(day, b);
+    if (ms > now || ms < now - 26 * 3600_000) continue;
+    for (const [id, v] of Object.entries(vals)) (series.get(id) ?? series.set(id, []).get(id)!).push([ms, v]);
+  }
+  const out = new Map<string, Trend>();
+  for (const [id, s] of series) {
+    s.sort((a, b) => a[0] - b[0]);
+    const [lastMs, v] = s.at(-1)!;
+    let i = s.length - 1;
+    while (i > 0 && s[i - 1][1] === v) i--;
+    // Reading closest to `ago` before the latest, within ±tol, else null.
+    const at = (ago: number, tol: number) => {
+      let best: [number, number] | null = null;
+      for (const p of s) if (Math.abs(lastMs - ago - p[0]) <= tol && (!best || Math.abs(lastMs - ago - p[0]) < Math.abs(lastMs - ago - best[0]))) best = p;
+      return best ? +(v - best[1]).toFixed(2) : null;
+    };
+    out.set(id, { flatV: v, flatH: (lastMs - s[i][0]) / 3600_000, d1h: at(3600_000, 20 * 60_000), d24h: at(86400_000, 3600_000) });
+  }
+  return out;
+}

@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -101,3 +101,17 @@ const pr = (code: string, th: string, lvl: number, time = '2026-09-27 07:30') =>
 assert.deepStrictEqual(parseProvinces([pr('10', 'กทม', 5), pr('12', 'นนท', 3), pr('14', 'อยุธยา', 5), pr('14', 'อยุธยา', 4), pr('14', 'อยุธยา', 5, '2026-09-26 07:00')], pn)
   .map((p) => [p.th, p.n, p.over, p.near]), [['อยุธยา', 2, 1, 1], ['นนท', 1, 0, 0]]);
 console.log('provinces ok');
+
+// Trends: flat-line length, 1 h / 24 h deltas, readings outside the window ignored.
+{
+  const now = Date.parse('2026-09-27T10:00:00+07:00');
+  const f0 = emptyDay(), f1 = emptyDay();
+  for (let h = 0; h <= 10; h++) f1.road[`${String(h).padStart(2, '0')}:00`] = { A: 20, B: h === 10 ? 31.5 : 30 };
+  f0.canal['10:00'] = { C: 1.0 }; f1.canal['09:00'] = { C: 1.2 }; f1.canal['10:00'] = { C: 1.25 };
+  f0.road['01:00'] = { A: 20 }; // 33 h before now: outside the 26 h window
+  const r = sensorTrends([['2026-09-26', f0], ['2026-09-27', f1]], 'road', now);
+  assert.deepStrictEqual([r.get('A')!.flatH, r.get('B')!.flatH, r.get('B')!.d1h], [10, 0, 1.5]);
+  const c = sensorTrends([['2026-09-26', f0], ['2026-09-27', f1]], 'canal', now).get('C')!;
+  assert.deepStrictEqual([c.d1h, c.d24h], [0.05, 0.25]);
+  console.log('trends ok');
+}

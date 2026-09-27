@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, type DwrCamera,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, type DwrCamera, type Trend,
   fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type Dam, type FloodEvent, type ProvinceSum, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
@@ -69,6 +69,9 @@ const T = {
     srcEvents: 'เหตุการณ์: iTIC / Longdo Event', srcTitle: 'แหล่งข้อมูล',
     srcCams: 'กล้อง: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / มูลนิธิ iTIC / กรมทางหลวง',
     srcDistricts: 'ขอบเขตเขต: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: '🚦 จราจร', trafficTipIdx: 'ดัชนีการจราจร กทม. 0–10 จาก Longdo Traffic (ยิ่งสูงยิ่งติด)',
+    stuckRoad: (h: number) => `⚠️ ค่าเท่าเดิมมา ${h} ชม. อาจเป็นค่าค้างหรือค่าประมาณ (ไม่ใช่ค่าวัดสด) จึงไม่นับในสรุปและสีของเขต`,
+    stuckCanal: (h: number) => `⚠️ ค่าไม่เปลี่ยนมา ${h} ชม. เครื่องวัดอาจค้าง`, stuckSum: (n: number) => ` · ไม่นับ ${n} จุดที่ค่าไม่เปลี่ยนเกิน 6 ชม. (อาจค้าง)`,
+    trend1h: '1 ชม.', trend24h: '24 ชม.', trendLbl: 'เปลี่ยนแปลง',
     lyDwr: 'กล้องแม่น้ำ/คลอง กรมทรัพยากรน้ำ (ทั่วประเทศ)', dwrAgency: 'กรมทรัพยากรน้ำ', dwrLoading: 'กำลังโหลดภาพ…', dwrFail: 'โหลดภาพไม่ได้ในขณะนี้',
     dwrOld: 'ภาพเก่ากว่า 1 ชม. อาจไม่ใช่สภาพปัจจุบัน', dwrShot: 'ถ่ายเมื่อ', dwrNote: 'ภาพประกอบเท่านั้น ไม่ใช่ค่าระดับน้ำ', dwrOpen: 'ดูสถานีที่เว็บกรมทรัพยากรน้ำ', dwrProv: 'จังหวัด',
     lyCams: 'กล้องจราจร (Longdo/iTIC)', camTitle: 'กล้องจราจร', camOwner: 'เจ้าของกล้อง', camOpen: 'ดูภาพสดที่ Longdo Traffic',
@@ -153,6 +156,9 @@ const T = {
     srcEvents: 'Incidents: iTIC / Longdo Event', srcTitle: 'Data sources',
     srcCams: 'Cameras: <a href="https://traffic.longdo.com/cameralist" target="_blank" rel="noopener">Longdo Traffic</a> / iTIC Foundation / DOH',
     srcDistricts: 'District boundaries: <a href="https://github.com/chingchai/OpenGISData-Thailand" target="_blank" rel="noopener">OpenGISData-Thailand</a> (chingchai)', trafficIdx: '🚦 Traffic', trafficTipIdx: 'Bangkok traffic index 0–10 from Longdo Traffic (higher = worse)',
+    stuckRoad: (h: number) => `⚠️ Same value for ${h} h — likely stuck or an estimate, not a live reading; left out of the summary and district colours`,
+    stuckCanal: (h: number) => `⚠️ Unchanged for ${h} h — the gauge may be stuck`, stuckSum: (n: number) => ` · ${n} points unchanged for 6+ h (possibly stuck) not counted`,
+    trend1h: '1 h', trend24h: '24 h', trendLbl: 'Change',
     lyDwr: 'River/canal cameras, Dept. of Water Resources (nationwide)', dwrAgency: 'Dept. of Water Resources', dwrLoading: 'Loading image…', dwrFail: 'Image unavailable right now',
     dwrOld: 'Image is over 1 h old — may not show current conditions', dwrShot: 'Taken', dwrNote: 'For context only — not a water-level reading', dwrOpen: 'Station on DWR website', dwrProv: 'Province',
     lyCams: 'Traffic cameras (Longdo/iTIC)', camTitle: 'Traffic camera', camOwner: 'Owner', camOpen: 'Live view on Longdo Traffic',
@@ -240,6 +246,16 @@ const secOpen = (id: string) => openSecs.has(id);
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
 let cameras: Camera[] = [];
 let dwrCams: DwrCamera[] = [];
+// Live mode only: from the last ~26 h of history. Refetched at most every 20 min.
+let trends: Awaited<ReturnType<typeof fetchTrends>> = null, trendsAt = 0;
+const STUCK_ROAD_H = 6, STUCK_CANAL_H = 12;
+/** Hours a live road reading has been frozen at its current value (0 = moving / unknown). */
+const roadStuckH = (r: RoadFlood) => {
+  const tr = historyAt == null && r.cm > 0 ? trends?.road.get(r.id) : undefined;
+  return tr && tr.flatV === r.cm && tr.flatH >= STUCK_ROAD_H ? Math.floor(tr.flatH) : 0;
+};
+const liveRoad = () => road.items.filter((r) => !roadStuckH(r));
+const canalTrend = (c: Canal): Trend | undefined => (historyAt == null ? trends?.canal.get(c.id) : undefined);
 let simOn = false;
 let simCm = 60;
 
@@ -474,6 +490,10 @@ async function refresh(pending = fetchAll()) {
   if (historyAt != null) return showHistory(historyAt);
   $('refresh').setAttribute('disabled', '');
   fetchUpstream().then((v) => { upstream = v; render(); });
+  if (Date.now() - trendsAt > 20 * 60_000) {
+    trendsAt = Date.now();
+    fetchTrends().then((tr) => { trends = tr; if (historyAt == null) apply(); });
+  }
   // Show each source as soon as it arrives instead of waiting for the slowest one.
   // Road decides the "all clear" wording, so the page stays in its loading state until road is in.
   const [pRoad, pCanal, pRain, pReports, pEvents, pTraffic] = pending;
@@ -510,7 +530,7 @@ async function showHistory(at: number) {
 
 function apply() {
   for (const d of districts) Object.assign(d, { road: [], reports: 0, events: 0, impassable: 0, rainMax: null });
-  for (const r of road.items) findDistrict(r.lng, r.lat)?.road.push(r);
+  for (const r of liveRoad()) findDistrict(r.lng, r.lat)?.road.push(r);
   for (const r of reports.items) { const d = findDistrict(r.lng, r.lat); if (d) d.reports++; }
   for (const e of events.items) { const d = findDistrict(e.lng, e.lat); if (d) { d.events++; if (e.impassable) d.impassable++; } }
   for (const r of rain.items) { const d = findDistrict(r.lng, r.lat); if (d && (!d.rainMax || r.mm > d.rainMax.mm)) d.rainMax = r; }
@@ -527,7 +547,7 @@ function apply() {
     if (d) showDistrict(d);
   }
 
-  setData('road', fc(road.items, (r) => [r.lng, r.lat], (r) => ({ cm: r.cm, level: r.level })));
+  setData('road', fc(road.items, (r) => [r.lng, r.lat], (r) => ({ cm: r.cm, level: roadStuckH(r) ? 0 : r.level })));
   setData('canal', fc(canals.items, (c) => [c.lng, c.lat], (c) => ({ situation: c.situation, small: c.agency === 'สนน.' })));
   setData('rain', fc(rain.items, (r) => [r.lng, r.lat], (r) => ({ mm: r.mm })));
   setData('reports', fc(reports.items, (r) => [r.lng, r.lat], () => ({})));
@@ -572,7 +592,8 @@ function render() {
   $('riskValue').style.color = noRoad ? '' : LEVEL_COLORS[overall];
   $('riskLabel').textContent = noRoad ? L.needSensor : lvlName(overall);
 
-  const flooded = road.items.filter((r) => r.cm > 0).sort((a, b) => b.cm - a.cm);
+  const flooded = liveRoad().filter((r) => r.cm > 0).sort((a, b) => b.cm - a.cm);
+  const stuckN = road.items.filter((r) => roadStuckH(r)).length;
   const worst = flooded[0];
   const worstD = worst && findDistrict(worst.lng, worst.lat);
   const topRain = [...rain.items].sort((a, b) => b.mm - a.mm)[0];
@@ -615,7 +636,7 @@ function render() {
     reports: reports.items.length,
     events: events.items.length,
     impassable: events.items.filter((e) => e.impassable).length,
-  })) + canalTxt + rainNow;
+  })) + (stuckN && !noRoad ? L.stuckSum(stuckN) : '') + canalTxt + rainNow;
   // Show 'read more' only when the 4-line clamp actually hides something.
   const sum = $('summary'), more = $('summaryMore');
   sum.classList.toggle('clamp', !summaryOpen);
@@ -690,7 +711,7 @@ function render() {
   const canalItems = [...canals.items].sort((a, b) => b.situation - a.situation || (a.bank ?? 99) - a.wl - ((b.bank ?? 99) - b.wl))
     .map((c) => `<button class="item" style="--c:${SITUATION_COLORS[c.situation]}" data-canal="${canals.items.indexOf(c)}">
       <div class="t"><span>${esc(name(c))}</span><span>${c.wl.toFixed(2)} m</span></div>
-      <div class="s">${canalStatus(c)}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}</div></button>`);
+      <div class="s">${canalStatus(c)}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}${canalTrend(c)?.d1h != null ? ` · ${trendTxt(c).split(' · ')[0]}` : ''}${canalStuckH(c) ? ' · ⚠️' : ''}</div></button>`);
   const canalFresh = canals.items.filter((c) => c.note !== 'stale').length;
   html += section('canals', `${L.canals} (${canals.items.length}) · ${L.canalFresh(canalFresh, canals.items.length)}`, `<div class="empty" style="margin:0 0 6px">${L.greenNote}</div>` + list(canalItems, 10, L.traffyMore));
 
@@ -831,6 +852,7 @@ function showRoad(r: RoadFlood, fly = false) {
     row(L.status, `<span style="color:${LEVEL_COLORS[r.level]}">${r.cm > 0 ? lvlName(r.level) : L.noFloodReport}</span>`) +
     (d ? row(L.districtLbl, esc(dName(d))) : '') +
     row(L.waterNow, `${r.cm} cm`) + (r.maxCm != null ? row(L.max, `${r.maxCm} cm`) : '') + (r.start ? row(L.since, hhmm(r.start)) : '') + row(L.updated, hhmm(r.updated)) +
+    (roadStuckH(r) ? `<div class="empty" style="color:var(--l2)">${L.stuckRoad(roadStuckH(r))}</div>` : '') +
     `<div class="r"><a href="${esc(r.url)}" target="_blank" rel="noopener">${L.detail} ↗</a></div>` + nearCameraRow(r), fly);
 }
 /** Status text for a canal point: bank bands for BMA points, ThaiWater bands otherwise, or why it's grey. */
@@ -840,13 +862,25 @@ function canalStatus(c: Canal) {
   if (c.note === 'nobank') return L.canalNoBank;
   return (c.agency === 'สนน.' ? L.bankSit : L.situation)[c.situation] ?? '-';
 }
+/** "▲ +5 cm (1 h) · ▼ −12 cm (24 h)" from history; '' when unknown. */
+function trendTxt(c: Canal) {
+  const tr = canalTrend(c), L = t();
+  const f = (d: number | null, lbl: string) => {
+    if (d == null) return '';
+    const cm = Math.round(d * 100);
+    return `${cm > 0 ? '▲ +' : cm < 0 ? '▼ −' : '■ '}${Math.abs(cm)} cm (${lbl})`;
+  };
+  return tr ? [f(tr.d1h, L.trend1h), f(tr.d24h, L.trend24h)].filter(Boolean).join(' · ') : '';
+}
+const canalStuckH = (c: Canal) => { const tr = canalTrend(c); return tr && tr.flatV === c.wl && tr.flatH >= STUCK_CANAL_H ? Math.floor(tr.flatH) : 0; };
 function showCanal(c: Canal, fly = false) {
   const L = t();
   open([c.lng, c.lat], `<b>${esc(name(c))}</b>` +
     row(L.status, `<span style="color:${SITUATION_COLORS[c.situation]}">${canalStatus(c)}</span>`) +
     row(L.waterNow, `${c.wl.toFixed(2)} ${L.msl}`) +
     (c.bank != null ? row(L.bank, `${c.bank.toFixed(2)} ${L.msl}`) + row(L.toBank, `${(c.bank - c.wl).toFixed(2)} m`) : '') +
-    row(L.agency, esc(c.agency)) + row(L.updated, hhmm(c.updated)), fly);
+    (trendTxt(c) ? row(L.trendLbl, trendTxt(c)) : '') + row(L.agency, esc(c.agency)) + row(L.updated, hhmm(c.updated)) +
+    (canalStuckH(c) ? `<div class="empty" style="color:var(--l2)">${L.stuckCanal(canalStuckH(c))}</div>` : ''), fly);
 }
 function showRain(r: Rain, fly = false) {
   const L = t();
@@ -878,7 +912,7 @@ function showProvince(p: ProvinceSum) {
 function showNear(p: { lng: number; lat: number }) {
   const L = t();
   const near = <T extends { lng: number; lat: number }>(xs: T[]) => xs.filter((x) => metres(p, x) <= 2000);
-  const flooded = near(road.items).filter((r) => r.cm > 0);
+  const flooded = near(liveRoad()).filter((r) => r.cm > 0);
   const canalHits = near(canals.items).filter((c) => c.situation >= 4);
   const evs = near(events.items), reps = near(reports.items);
   let gauge: Rain | null = null;
