@@ -422,7 +422,9 @@ export async function fetchUpstream(): Promise<UpstreamView> {
     getJson('/api/history/provinces').catch(() => null) as Promise<Provinces | null>,
     getJson('/api/history/nation').catch(() => null) as Promise<NationPoints | null>,
   ]);
+  // The collector refreshes these every 30 min; if it has stopped, show no colours (grey) rather than hours-old ones unlabelled.
+  const fresh = <T extends { fetchedAt: string }>(x: T | null) => (x && Date.now() - Date.parse(x.fetchedAt) < 3 * 3600_000 ? x : null);
   // Only warnings dated within the last 3 days; the page keeps old ones listed long after they expire.
   const since = slot(Date.now() - 3 * 86400_000).day;
-  return { dams: up?.dams ?? [], c13: load ? parseC13(load) : null, tmd: (tmd?.items ?? []).filter((w) => w.day && w.day >= since), provinces, nation };
+  return { dams: up?.dams ?? [], c13: load ? parseC13(load) : null, tmd: (tmd?.items ?? []).filter((w) => w.day && w.day >= since), provinces: fresh(provinces), nation: fresh(nation) };
 }

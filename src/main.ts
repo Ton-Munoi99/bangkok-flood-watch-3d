@@ -1090,15 +1090,15 @@ function showNear(p: { lng: number; lat: number }) {
   const near = <T extends { lng: number; lat: number }>(xs: T[]) => xs.filter((x) => metres(p, x) <= 2000);
   const flooded = near(liveRoad()).filter((r) => r.cm > 0);
   const canalHits = near(canals.items).filter((c) => c.situation >= 4);
-  const evs = near(events.items), reps = near(reports.items);
+  const evs = near(events.items), reps = near(reports.items), hws = near(dohLive());
   let gauge: Rain | null = null;
   for (const r of rain.items) if (!gauge || metres(p, r) < metres(p, gauge)) gauge = r;
   const d = findDistrict(p.lng, p.lat);
-  const any = flooded.length || canalHits.length || evs.length || reps.length;
+  const any = flooded.length || canalHits.length || evs.length || reps.length || hws.length;
   open([p.lng, p.lat], `<b>📍 ${L.nearHere}</b>` + (d ? row(L.district, esc(dName(d))) : `<div class="empty">${L.nearOutside}</div>`) +
     (flooded.length ? row(L.nearRoad, L.nearPts(flooded.length, Math.max(...flooded.map((r) => r.cm)))) : '') +
     (canalHits.length ? row(L.nearCanal, canalHits.map((c) => esc(name(c))).slice(0, 3).join(', ')) : '') +
-    (near(dohLive()).length ? row(L.nearDoh, String(near(dohLive()).length)) : '') + (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
+    (hws.length ? row(L.nearDoh, String(hws.length)) : '') + (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
     (any ? '' : `<div style="margin:4px 0">${L.nearNone}</div>`) +
     (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : ''), true);
 }
