@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, situation, slot, slotMs } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -69,3 +69,9 @@ assert.deepStrictEqual(parseC13({ waterlevel_data: { data: [
   { discharge: '1950.00', waterlevel_datetime: '2026-09-26 17:00', station: { tele_station_oldcode: 'C.13' } },
 ] } }), { discharge: 1950, time: '2026-09-26 17:00' });
 console.log('upstream ok');
+
+// BMA canals: bank-distance bands when there's no ground level; placeholder banks ignored.
+assert.deepStrictEqual([situation(1.62, null, 1.5), situation(1.3, null, 1.5), situation(1.0, null, 1.5)], [5, 4, 3]);
+assert.strictEqual(realBank(0), null);
+assert.strictEqual(realBank(1.5), 1.5);
+console.log('bma canals ok');

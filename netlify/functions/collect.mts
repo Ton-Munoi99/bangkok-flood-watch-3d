@@ -3,7 +3,7 @@
 // ThaiWater (incl. its relay of BMA road-flood sensors), Traffy and Longdo (events, traffic index). weather.bangkok.go.th blocks non-Thai IPs.
 import { getStore } from '@netlify/blobs';
 import {
-  DayBuilder, HISTORY_DAYS, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
+  DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
   emptyDay, emptyMeta, mergeDay, parseDams, slot, type DayFile, type Meta, type Upstream,
 } from '../../src/data/history.ts';
 
@@ -24,6 +24,7 @@ export default async () => {
     getJson(`${TW}/flood_road`).then((d) => addFloodRoad(meta, b, d.data, now - 3600_000)),
     getJson(`${TW}/waterlevel_load?province_code=10`).then((d) => addCanal(meta, b, d.waterlevel_data.data)),
     getJson(`${TW}/rain_24h?province_code=10`).then((d) => addRain(meta, b, d.data)),
+    getJson(`${TW}/canal_waterlevel`).then((d) => addBmaCanals(meta, b, d.data)),
     getJson(`${TRAFFY}?limit=500`).then((d) => addReports(b, d.results)),
     // The feed also carries recent expired events, so this backfills itself.
     getJson(LONGDO_EVENTS).then((d) => parseLongdoEvents(d).forEach((e) => b.event(e, now))),

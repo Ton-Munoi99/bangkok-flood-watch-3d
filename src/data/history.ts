@@ -40,6 +40,8 @@ export const slotMs = (day: string, bucket: string) => Date.parse(`${day}T${buck
 
 /** ThaiWater "situation" band (1..5) from level vs ground/bank, same bands ThaiWater uses for storage %. */
 export function situation(wl: number, ground: number | null, bank: number | null) {
+  // BMA canal points have a bank level but no ground level: classify by distance to the bank instead.
+  if (ground == null && bank != null) return wl >= bank ? 5 : bank - wl < 0.3 ? 4 : 3;
   if (ground == null || bank == null || bank <= ground) return 3;
   const pct = ((wl - ground) / (bank - ground)) * 100;
   return pct > 100 ? 5 : pct > 70 ? 4 : pct > 30 ? 3 : pct > 10 ? 2 : 1;
@@ -215,4 +217,22 @@ export function parseC13(load: { waterlevel_data?: { data?: unknown[] } }) {
   const rows = (load?.waterlevel_data?.data ?? []) as { discharge: string | number | null; waterlevel_datetime: string; station?: { tele_station_oldcode?: string } }[];
   const r = rows.find((x) => x.station?.tele_station_oldcode === 'C.13' && x.discharge != null);
   return r ? { discharge: Number(r.discharge), time: r.waterlevel_datetime } : null;
+}
+
+// ---------- BMA canal network (สนน., ~280 points) as relayed by ThaiWater, with real bank levels ----------
+// weather.bangkok.go.th's own canal data only has BMA's operating "critical" levels, not banks.
+export interface TwCanalRow {
+  canal_datetime: string | null; canal_value: number | null;
+  station?: { canal_name?: { th?: string }; canal_lat?: number; canal_long?: number; canal_oldcode?: string; bank?: number | null };
+}
+/** A bank of 0 or below is a placeholder in the source, not a real level. */
+export const realBank = (b: number | null | undefined) => (b != null && Number(b) > 0 ? Number(b) : null);
+
+export function addBmaCanals(meta: Meta, b: DayBuilder, rows: TwCanalRow[]) {
+  for (const r of rows) {
+    const s = r.station, code = s?.canal_oldcode;
+    if (!s || !code || !s.canal_lat || !s.canal_long) continue;
+    meta.canal[code] = { th: s.canal_name?.th ?? code, en: '', lng: s.canal_long, lat: s.canal_lat, bank: realBank(s.bank), ground: null, agency: 'สนน.' };
+    if (r.canal_value != null && r.canal_datetime) b.canal(bkkMs(r.canal_datetime), code, Number(r.canal_value));
+  }
 }

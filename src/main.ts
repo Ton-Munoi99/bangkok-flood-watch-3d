@@ -29,7 +29,7 @@ const T = {
     lyRoad: 'เซนเซอร์น้ำท่วมถนน (กทม.)', lyCanal: 'ระดับน้ำคลอง/แม่น้ำ', lyRain: 'ฝน 24 ชม.', lyReports: 'ประชาชนแจ้งน้ำท่วม (Traffy)',
     lyDistrict: 'สีระดับความเสี่ยงรายเขต', lyBuild: 'อาคาร 3D', lySat: 'ภาพดาวเทียม', lyTerrain: 'ภูมิประเทศ (Terrain)',
     terrainNote: 'Terrain ความละเอียด ~30 ม. — พื้นที่ กทม. ราบมาก (ส่วนใหญ่ 0–2 ม. รทก.) จึงไม่เหมาะเป็นข้อมูลความสูงหลักสำหรับประเมินน้ำท่วม',
-    alerts: '⚠ แจ้งเตือน: จุดท่วมหนัก', districts: 'เขตที่ได้รับผลกระทบ', canals: 'ระดับน้ำคลอง/แม่น้ำ (สสน.)',
+    alerts: '⚠ แจ้งเตือน: จุดท่วมหนัก', districts: 'เขตที่ได้รับผลกระทบ', canals: 'ระดับน้ำคลอง/แม่น้ำ',
     unavailable: 'ไม่พร้อมใช้งาน', needSensor: 'ต้องใช้ข้อมูลเซนเซอร์ กทม.',
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
@@ -47,7 +47,7 @@ const T = {
     hotlineBtn: '📞 สายด่วน', rainBtn: '🌧️ พยากรณ์ฝน', hotlineTitle: '📞 สายด่วนขอความช่วยเหลือ',
     hotlineNote: 'บนมือถือ กดที่เบอร์เพื่อโทรได้ทันที', rainTitle2: '🌧️ พยากรณ์ฝน กทม. และปริมณฑล',
     rainTabFc: 'พยากรณ์ฝน', rainTabRadar: 'เรดาร์', rainTabAccu: 'ฝนสะสม', rainNote: 'ข้อมูลจาก Windy (โมเดล ECMWF) — ใช้แถบเวลาด้านล่างเพื่อดูล่วงหน้า',
-    hotlines: [['1784', 'ปภ. แจ้งเหตุสาธารณภัย'], ['1669', 'เจ็บป่วยฉุกเฉิน'], ['191', 'เหตุด่วนเหตุร้าย'], ['199', 'ดับเพลิง / กู้ภัย'],
+    hotlines: [['1784', 'ปภ. แจ้งเหตุสาธารณภัย'], ['1669', 'เจ็บป่วยฉุกเฉิน'], ['191', 'เหตุด่วนเหตุร้าย'], ['199', 'ดับเพลิง / กู้ภัย'], ['1130', 'ไฟรั่ว / ไฟดูด (การไฟฟ้านครหลวง)'],
       ['1555', 'กรุงเทพมหานคร'], ['1460', 'กรมชลประทาน'], ['1182', 'กรมอุตุนิยมวิทยา'], ['1586', 'กรมทางหลวง (เส้นทางน้ำท่วม)'], ['1146', 'กรมทางหลวงชนบท']],
     lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
     impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
@@ -67,6 +67,12 @@ const T = {
     mockBanner: 'บางแหล่งเชื่อมต่อไม่ได้ — กำลังแสดงข้อมูลล่าสุดที่มี ไม่ใช่ข้อมูลปัจจุบัน:', asOf: (t: string, ago: string) => `ข้อมูลเมื่อ ${t} (${ago}ที่แล้ว)`,
     agoFmt: (h: number, m: number) => (h ? `${h} ชม. ` : '') + `${m} นาที`, l4: 'ไม่มีข้อมูล',
     situation: ['', 'น้อยวิกฤต', 'น้อย', 'ปกติ', 'มาก', 'ล้นตลิ่ง'],
+    // BMA canal points are classed by distance to the bank instead of ThaiWater's storage bands
+    bankSit: ['', '', '', 'ห่างตลิ่ง', 'ใกล้ตลิ่ง (<30 ซม.)', 'ถึง/เกินตลิ่ง'], canalStale: 'ข้อมูลเกิน 1 ชม.', canalNoBank: 'ไม่มีข้อมูลตลิ่ง',
+    canalFresh: (fresh: number, all: number) => `ส่งค่าใน 1 ชม. ${fresh}/${all}`,
+    canalSum: (over: number, near: number, fresh: number, all: number) => ` · คลอง: ถึง/เกินตลิ่ง <b>${over} จุด</b> ใกล้ตลิ่ง ${near} จุด (ส่งค่าใน 1 ชม. ${fresh}/${all})`,
+    rain1h: (n: number, all: number, max: number) => ` · ฝน 1 ชม. ล่าสุด: ตก ${n} จาก ${all} สถานี${n ? ` มากสุด ${max} มม.` : ''}`,
+    noFloodReport: 'ไม่มีรายงานน้ำท่วม', readMore: 'อ่านต่อ ▾', readLess: 'ย่อ ▴',
     rainCls: (mm: number) => (mm > 90 ? 'หนักมาก' : mm > 35 ? 'หนัก' : mm > 10 ? 'ปานกลาง' : 'เล็กน้อย'),
     summary: (s: Summary) =>
       s.pts === 0
@@ -92,7 +98,7 @@ const T = {
     lyRoad: 'Road flood sensors (BMA)', lyCanal: 'Canal/river levels', lyRain: '24h rainfall', lyReports: 'Citizen flood reports (Traffy)',
     lyDistrict: 'District risk colours', lyBuild: '3D buildings', lySat: 'Satellite', lyTerrain: 'Terrain',
     terrainNote: 'Terrain is ~30 m resolution and Bangkok is very flat (mostly 0–2 m MSL), so it is not suitable as the primary elevation source for flood assessment.',
-    alerts: '⚠ Alerts: severe flooding', districts: 'Affected districts', canals: 'Canal/river levels (HII)',
+    alerts: '⚠ Alerts: severe flooding', districts: 'Affected districts', canals: 'Canal/river levels',
     unavailable: 'unavailable', needSensor: 'needs BMA sensor data',
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
@@ -110,7 +116,7 @@ const T = {
     hotlineBtn: '📞 Hotlines', rainBtn: '🌧️ Rain forecast', hotlineTitle: '📞 Emergency hotlines (Thailand)',
     hotlineNote: 'On a phone, tap a number to call.', rainTitle2: '🌧️ Rain forecast — Bangkok & vicinity',
     rainTabFc: 'Forecast', rainTabRadar: 'Radar', rainTabAccu: 'Accumulated', rainNote: 'Data from Windy (ECMWF model) — use the timeline to look ahead.',
-    hotlines: [['1784', 'Disaster Prevention (DDPM)'], ['1669', 'Medical emergency'], ['191', 'Police emergency'], ['199', 'Fire / rescue'],
+    hotlines: [['1784', 'Disaster Prevention (DDPM)'], ['1669', 'Medical emergency'], ['191', 'Police emergency'], ['199', 'Fire / rescue'], ['1130', 'Electrical leak / shock (MEA)'],
       ['1555', 'Bangkok Metropolitan Administration'], ['1460', 'Royal Irrigation Dept.'], ['1182', 'Thai Meteorological Dept.'], ['1586', 'Dept. of Highways (flooded routes)'], ['1146', 'Dept. of Rural Roads']],
     lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
     impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
@@ -130,6 +136,11 @@ const T = {
     mockBanner: 'Some sources are unreachable — showing the latest data available, not current:', asOf: (t: string, ago: string) => `data as of ${t} (${ago} ago)`,
     agoFmt: (h: number, m: number) => (h ? `${h} h ` : '') + `${m} min`, l4: 'No data',
     situation: ['', 'Critically low', 'Low', 'Normal', 'High', 'Overflowing'],
+    bankSit: ['', '', '', 'Below bank', 'Near bank (<30 cm)', 'At/over bank'], canalStale: 'Reading over 1 h old', canalNoBank: 'No bank level',
+    canalFresh: (fresh: number, all: number) => `${fresh}/${all} reported in the last hour`,
+    canalSum: (over: number, near: number, fresh: number, all: number) => ` · canals: <b>${over}</b> at/over bank, ${near} near bank (${fresh}/${all} reported in 1 h)`,
+    rain1h: (n: number, all: number, max: number) => ` · last hour: rain at ${n} of ${all} gauges${n ? `, max ${max} mm` : ''}`,
+    noFloodReport: 'No flooding reported', readMore: 'Read more ▾', readLess: 'Show less ▴',
     rainCls: (mm: number) => (mm > 90 ? 'very heavy' : mm > 35 ? 'heavy' : mm > 10 ? 'moderate' : 'light'),
     summary: (s: Summary) =>
       s.pts === 0
@@ -193,6 +204,7 @@ let trafficIdx: number | null = null;
 let upstream: UpstreamView | null = null; // live only (dams update daily)
 let historyAt: number | null = null; // null = live
 const openSecs = new Set(['alerts']); // side-panel sections the viewer has open
+let summaryOpen = false; // long summary expanded by the viewer
 const secOpen = (id: string) => openSecs.has(id);
 let loaded = false; // false until the first fetch finishes — avoids showing a fake "all clear"
 let cameras: Camera[] = [];
@@ -340,8 +352,10 @@ map.on('load', async () => {
   map.addLayer({
     id: 'canal', type: 'circle', source: 'canal',
     paint: {
-      'circle-radius': 8, 'circle-color': '#0b1322', 'circle-stroke-width': 4,
-      'circle-stroke-color': ['match', ['get', 'situation'], 5, SITUATION_COLORS[5], 4, SITUATION_COLORS[4], 3, SITUATION_COLORS[3], SITUATION_COLORS[1]],
+      // ~280 BMA canal points: smaller rings than the few ThaiWater river/canal stations
+      'circle-radius': ['case', ['get', 'small'], ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 6], 8],
+      'circle-color': '#0b1322', 'circle-stroke-width': ['case', ['get', 'small'], 2.5, 4],
+      'circle-stroke-color': ['match', ['get', 'situation'], 5, SITUATION_COLORS[5], 4, SITUATION_COLORS[4], 3, SITUATION_COLORS[3], SITUATION_COLORS[0]],
     },
   });
   map.addImage('cam-icon', cameraIcon(), { pixelRatio: 1.4 });
@@ -466,7 +480,7 @@ function apply() {
   }
 
   setData('road', fc(road.items, (r) => [r.lng, r.lat], (r) => ({ cm: r.cm, level: r.level })));
-  setData('canal', fc(canals.items, (c) => [c.lng, c.lat], (c) => ({ situation: c.situation })));
+  setData('canal', fc(canals.items, (c) => [c.lng, c.lat], (c) => ({ situation: c.situation, small: c.agency === 'สนน.' })));
   setData('rain', fc(rain.items, (r) => [r.lng, r.lat], (r) => ({ mm: r.mm })));
   setData('reports', fc(reports.items, (r) => [r.lng, r.lat], () => ({})));
   setData('events', fc(events.items, (e) => [e.lng, e.lat], (e) => ({ x: e.impassable })));
@@ -539,7 +553,12 @@ function render() {
   const affected = districts.filter((d) => maxCm(d) > 0 || d.reports >= 3 || d.events > 0)
     .sort((a, b) => maxCm(b) - maxCm(a) || b.impassable - a.impassable || b.events - a.events || b.reports - a.reports);
   const rainTxt = topRain ? `<b>${topRain.mm} mm</b> (${esc(name(topRain))})` : '';
-  $('summary').innerHTML = noRoad ? L.summaryNoRoad(rainTxt, reports.items.length) : L.summary({
+  const bmaCanals = canals.items.filter((c) => c.agency === 'สนน.');
+  const canalTxt = bmaCanals.length ? L.canalSum(bmaCanals.filter((c) => c.situation === 5).length, bmaCanals.filter((c) => c.situation === 4).length,
+    bmaCanals.filter((c) => c.note !== 'stale').length, bmaCanals.length) : '';
+  const rain1h = rain.items.filter((r) => r.mm1h != null);
+  const rainNow = historyAt == null && rain1h.length ? L.rain1h(rain1h.filter((r) => r.mm1h! > 0).length, rain1h.length, Math.max(0, ...rain1h.map((r) => r.mm1h!))) : '';
+  $('summary').innerHTML = (noRoad ? L.summaryNoRoad(rainTxt, reports.items.length) : L.summary({
     pts: flooded.length,
     districts: new Set(flooded.map((r) => findDistrict(r.lng, r.lat)?.code)).size,
     heavy: heavy.length,
@@ -548,7 +567,12 @@ function render() {
     reports: reports.items.length,
     events: events.items.length,
     impassable: events.items.filter((e) => e.impassable).length,
-  });
+  })) + canalTxt + rainNow;
+  // Show 'read more' only when the 4-line clamp actually hides something.
+  const sum = $('summary'), more = $('summaryMore');
+  sum.classList.toggle('clamp', !summaryOpen);
+  more.hidden = !summaryOpen && sum.scrollHeight <= sum.clientHeight + 2;
+  more.textContent = summaryOpen ? L.readLess : L.readMore;
   const tIdx = $('trafficIdx');
   tIdx.hidden = trafficIdx == null;
   if (trafficIdx != null) {
@@ -556,7 +580,7 @@ function render() {
     tIdx.style.color = trafficIdx >= 7 ? LEVEL_COLORS[3] : trafficIdx >= 4 ? LEVEL_COLORS[2] : LEVEL_COLORS[0];
   }
 
-  const overBank = canals.items.filter((c) => c.bank != null && c.wl >= c.bank);
+  const overBank = canals.items.filter((c) => c.bank != null && c.wl >= c.bank && c.note !== 'stale');
   const evName = (e: FloodEvent) => (lang === 'th' ? e.title : e.titleEn || e.title);
   const eventItem = (e: FloodEvent, cls = '') => {
     const d = findDistrict(e.lng, e.lat);
@@ -608,10 +632,12 @@ function render() {
   html += section('traffy', `🟣 ${L.traffyList} (${reports.items.length})`,
     latestReports.length ? list(latestReports.map(reportItem), 10, L.traffyMore) : `<div class="empty">${L.traffyEmpty}</div>`);
 
-  html += section('canals', `${L.canals} (${canals.items.length})`,
-    [...canals.items].sort((a, b) => b.situation - a.situation).map((c) => `<button class="item" style="--c:${SITUATION_COLORS[c.situation]}" data-canal="${canals.items.indexOf(c)}">
+  const canalItems = [...canals.items].sort((a, b) => b.situation - a.situation || (a.bank ?? 99) - a.wl - ((b.bank ?? 99) - b.wl))
+    .map((c) => `<button class="item" style="--c:${SITUATION_COLORS[c.situation]}" data-canal="${canals.items.indexOf(c)}">
       <div class="t"><span>${esc(name(c))}</span><span>${c.wl.toFixed(2)} m</span></div>
-      <div class="s">${L.situation[c.situation] ?? ''}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}</div></button>`).join(''));
+      <div class="s">${canalStatus(c)}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}</div></button>`);
+  const canalFresh = canals.items.filter((c) => c.note !== 'stale').length;
+  html += section('canals', `${L.canals} (${canals.items.length}) · ${L.canalFresh(canalFresh, canals.items.length)}`, list(canalItems, 10, L.traffyMore));
 
   if (historyAt == null && upstream && (upstream.dams.length || upstream.c13)) {
     const damColor = (p: number) => (p >= 100 ? LEVEL_COLORS[3] : p >= 80 ? LEVEL_COLORS[2] : LEVEL_COLORS[0]);
@@ -715,15 +741,22 @@ function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = 
 function showRoad(r: RoadFlood, fly = false) {
   const L = t(), d = findDistrict(r.lng, r.lat);
   open([r.lng, r.lat], `<b>${esc(name(r))}</b>` +
-    row(L.status, `<span style="color:${LEVEL_COLORS[r.level]}">${lvlName(r.level)}</span>`) +
+    row(L.status, `<span style="color:${LEVEL_COLORS[r.level]}">${r.cm > 0 ? lvlName(r.level) : L.noFloodReport}</span>`) +
     (d ? row(L.districtLbl, esc(dName(d))) : '') +
     row(L.waterNow, `${r.cm} cm`) + (r.maxCm != null ? row(L.max, `${r.maxCm} cm`) : '') + (r.start ? row(L.since, hhmm(r.start)) : '') + row(L.updated, hhmm(r.updated)) +
     `<div class="r"><a href="${esc(r.url)}" target="_blank" rel="noopener">${L.detail} ↗</a></div>` + nearCameraRow(r), fly);
 }
+/** Status text for a canal point: bank bands for BMA points, ThaiWater bands otherwise, or why it's grey. */
+function canalStatus(c: Canal) {
+  const L = t();
+  if (c.note === 'stale') return L.canalStale;
+  if (c.note === 'nobank') return L.canalNoBank;
+  return (c.agency === 'สนน.' ? L.bankSit : L.situation)[c.situation] ?? '-';
+}
 function showCanal(c: Canal, fly = false) {
   const L = t();
   open([c.lng, c.lat], `<b>${esc(name(c))}</b>` +
-    row(L.status, `<span style="color:${SITUATION_COLORS[c.situation]}">${L.situation[c.situation] ?? '-'}</span>`) +
+    row(L.status, `<span style="color:${SITUATION_COLORS[c.situation]}">${canalStatus(c)}</span>`) +
     row(L.waterNow, `${c.wl.toFixed(2)} ${L.msl}`) +
     (c.bank != null ? row(L.bank, `${c.bank.toFixed(2)} ${L.msl}`) + row(L.toBank, `${(c.bank - c.wl).toFixed(2)} m`) : '') +
     row(L.agency, esc(c.agency)) + row(L.updated, hhmm(c.updated)), fly);
@@ -903,6 +936,7 @@ function wireDialogs() {
     });
   }
   $('hotlineBtn').addEventListener('click', () => $<HTMLDialogElement>('hotlineDlg').showModal());
+  $('summaryMore').addEventListener('click', () => { summaryOpen = !summaryOpen; render(); });
   $('linksBtn').addEventListener('click', () => $<HTMLDialogElement>('linksDlg').showModal());
   // Windy's official embed widget, centred on Bangkok; loaded only when opened.
   const windy = (overlay: string) => {

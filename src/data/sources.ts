@@ -4,7 +4,7 @@
 // live and snapshot data go through the same parser.
 
 import {
-  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, SENSOR_SILENT_MS, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
+  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
   parseC13, type Dam, type DayFile, type EventBy, type FloodEvent, type Meta, type Upstream,
 } from './history.ts';
 export type { Dam, FloodEvent };
@@ -19,8 +19,10 @@ export interface RoadFlood {
 export interface Canal {
   id: string; nameTh: string; nameEn: string; lng: number; lat: number;
   wl: number; bank: number | null; situation: number; updated: string; agency: string;
+  // why the colour is grey: reading older than 1 h, or no usable bank level
+  note?: 'stale' | 'nobank';
 }
-export interface Rain { id: string; nameTh: string; nameEn: string; lng: number; lat: number; mm: number; updated: string }
+export interface Rain { id: string; nameTh: string; nameEn: string; lng: number; lat: number; mm: number; mm1h: number | null; updated: string }
 export interface Report { id: string; lng: number; lat: number; text: string; address: string; photo: string; time: string; state: string }
 
 // snapshot = not current data (labelled in the UI with asOf); stale = too old to show at all (items empty).
@@ -164,7 +166,7 @@ interface TwStation {
   tele_station_lat: number; tele_station_long: number; min_bank: number | null;
 }
 interface TwWl { id: number; waterlevel_datetime: string; waterlevel_msl: string | null; situation_level: number; station: TwStation; agency: { agency_shortname: { th: string } } }
-interface TwRain { id: number; rain_24h: number | null; rainfall_datetime: string; station: TwStation }
+interface TwRain { id: number; rain_24h: number | null; rain_1h?: number | null; rainfall_datetime: string; station: TwStation }
 
 const parseCanal = (raw: { waterlevel_data: { data: TwWl[] } }): Canal[] =>
   raw.waterlevel_data.data.filter((x) => x.waterlevel_msl != null).map((x) => ({
@@ -177,12 +179,31 @@ const parseCanal = (raw: { waterlevel_data: { data: TwWl[] } }): Canal[] =>
 const parseRain = (raw: { data: TwRain[] }): Rain[] =>
   raw.data.filter((x) => x.rain_24h != null).map((x) => ({
     id: String(x.station.id), nameTh: x.station.tele_station_name.th, nameEn: x.station.tele_station_name.en,
-    lng: x.station.tele_station_long, lat: x.station.tele_station_lat, mm: Number(x.rain_24h), updated: x.rainfall_datetime,
+    lng: x.station.tele_station_long, lat: x.station.tele_station_lat, mm: Number(x.rain_24h),
+    mm1h: x.rain_1h == null ? null : Number(x.rain_1h), updated: x.rainfall_datetime,
   }));
+
+/** BMA's ~280 canal points (via ThaiWater) with real bank levels; grey when older than 1 h or bank unknown. */
+const parseBmaCanals = (rows: TwCanalRow[], now: number): Canal[] =>
+  rows.filter((r) => r.station?.canal_oldcode && r.station.canal_lat && r.canal_value != null && r.canal_datetime).map((r) => {
+    const s = r.station!, bank = realBank(s.bank), wl = Number(r.canal_value);
+    const stale = now - bkkMs(r.canal_datetime!) > 3600_000;
+    return {
+      id: s.canal_oldcode!, nameTh: s.canal_name?.th ?? s.canal_oldcode!, nameEn: '', lng: s.canal_long!, lat: s.canal_lat!,
+      wl, bank, situation: stale || bank == null ? 0 : situation(wl, null, bank), updated: r.canal_datetime!.replace(' ', 'T'),
+      agency: 'สนน.', note: stale ? 'stale' : bank == null ? 'nobank' : undefined,
+    };
+  });
 
 export const fetchCanals = () =>
   withFallback(
-    async () => parseCanal(await getJson(`${TW}/waterlevel_load?province_code=10`)),
+    async () => {
+      const [tele, bma] = await Promise.all([
+        getJson(`${TW}/waterlevel_load?province_code=10`).then(parseCanal),
+        getJson(`${TW}/canal_waterlevel`).then((d) => parseBmaCanals(d.data, Date.now())).catch(() => [] as Canal[]),
+      ]);
+      return [...tele, ...bma];
+    },
     async () => parseCanal((await import('./mock/thaiwater_waterlevel.json')).default as never),
     (c) => c.updated,
   );
@@ -286,11 +307,15 @@ export async function loadHistory(at: number): Promise<Snapshot> {
   };
   const canals: Canal[] = [...latest('canal')].filter(([id]) => meta.canal[id]).map(([id, { v, stamp }]) => {
     const m = meta.canal[id];
-    return { id, nameTh: m.th, nameEn: m.en, lng: m.lng, lat: m.lat, wl: v, bank: m.bank, situation: situation(v, m.ground, m.bank), updated: stamp, agency: m.agency };
+    const noBank = m.ground == null && m.bank == null;
+    return {
+      id, nameTh: m.th, nameEn: m.en, lng: m.lng, lat: m.lat, wl: v, bank: m.bank, situation: noBank ? 0 : situation(v, m.ground, m.bank),
+      updated: stamp, agency: m.agency, note: noBank ? 'nobank' as const : undefined,
+    };
   });
   const rain: Rain[] = [...latest('rain')].filter(([id]) => meta.rain[id]).map(([id, { v, stamp }]) => {
     const m = meta.rain[id];
-    return { id, nameTh: m.th, nameEn: m.en, lng: m.lng, lat: m.lat, mm: v, updated: stamp };
+    return { id, nameTh: m.th, nameEn: m.en, lng: m.lng, lat: m.lat, mm: v, mm1h: null, updated: stamp };
   });
   // History keeps no report text/photos/addresses (privacy) — only position, time and state.
   const reports: Report[] = files.flatMap(([, f]) => Object.entries(f.reports))
