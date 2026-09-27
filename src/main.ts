@@ -509,9 +509,13 @@ map.on('load', async () => {
   // Click priority: most specific layer first.
   const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill', 'amp-fill', 'prov-fill'];
   map.on('click', (e) => {
-    // A few pixels of slack so small markers are easy to hit (especially by finger).
-    const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
-    const f = map.queryRenderedFeatures(box, { layers: clickable.filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    // Slack around the tap so small markers are easy to hit: a fingertip needs more than a mouse pointer.
+    const k = matchMedia('(pointer: coarse)').matches ? 14 : 6;
+    const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - k, e.point.y - k], [e.point.x + k, e.point.y + k]];
+    // Province/amphoe layers only exist after 🗺️ is first ticked; querying a missing layer throws, which
+    // silently broke every tap for anyone who never ticked it. Only ask for layers that exist and are shown.
+    const layers = clickable.filter((l) => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
+    const f = map.queryRenderedFeatures(box, { layers })[0];
     if (!f) return;
     const i = f.properties.i as number;
     if (f.layer.id === 'road') showRoad(road.items[i]);
