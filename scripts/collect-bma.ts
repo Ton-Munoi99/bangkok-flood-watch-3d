@@ -3,12 +3,36 @@
 //   INGEST_TOKEN=... node scripts/collect-bma.ts          # push to https://bangkokflood.netlify.app
 //   node scripts/collect-bma.ts --dry                      # just print what would be sent
 // Identifies itself honestly; reads only the public home page, once per run.
-import { readFileSync } from 'node:fs';
-import { TW, parseBmaHome, slot } from '../src/data/history.ts';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { DOH_DASHBOARD, TW, parseBmaHome, parseDoh, slot } from '../src/data/history.ts';
 
 const UA = 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)';
 const INGEST_URL = process.env.INGEST_URL ?? 'https://bangkokflood.netlify.app/api/ingest';
 const dry = process.argv.includes('--dry');
+
+// Dept. of Highways flooded highways: hdms.doh.go.th doesn't answer Netlify's overseas servers, so this Mac relays it,
+// at most hourly (~1.35 MB a fetch; no compression offered). parseDoh drops reporters' names/phones before sending.
+// Runs first and never stops the BMA part below.
+const DOH_STAMP = `${homedir()}/.config/bangkokflood/doh-last`;
+async function relayDoh() {
+  let last = 0;
+  try { last = Number(readFileSync(DOH_STAMP, 'utf8').trim()) || 0; } catch { /* first run */ }
+  if (!dry && Date.now() - last < 55 * 60_000) return;
+  const q = new URLSearchParams({ start: slot(Date.now() - 3 * 86400_000).day, end: slot(Date.now()).day });
+  const res = await fetch(`${DOH_DASHBOARD}?${q}`, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const items = parseDoh(await res.json());
+  console.log(`doh ${items.length} flooded sections, ${items.filter((d) => d.impassable).length} impassable`);
+  if (dry) return;
+  const r = await fetch(`${INGEST_URL}?kind=doh`, {
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.INGEST_TOKEN}` },
+    body: JSON.stringify({ fetchedAt: new Date().toISOString(), items }), signal: AbortSignal.timeout(60_000),
+  });
+  console.log('ingest doh', r.status);
+  if (r.ok) { mkdirSync(`${homedir()}/.config/bangkokflood`, { recursive: true }); writeFileSync(DOH_STAMP, String(Date.now())); }
+}
+await relayDoh().catch((e) => console.log('doh failed:', (e as Error).message));
 
 // Station list (codes, coordinates, English names) saved from BMA's /flood/ page.
 type Station = { flood_code: string; flood_name: string; flood_name_en: string; latitude: number; longitude: number };

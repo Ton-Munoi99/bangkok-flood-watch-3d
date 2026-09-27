@@ -3,7 +3,7 @@
 // GET  /api/ingest — latest pushed readings for the page.
 // Auth: `Authorization: Bearer $INGEST_TOKEN` (set in Netlify env vars; never in the repo).
 import { getStore } from '@netlify/blobs';
-import { DayBuilder, bkkMs, emptyDay, emptyMeta, mergeDay, type DayFile, type Meta } from '../../src/data/history.ts';
+import { DayBuilder, bkkMs, emptyDay, emptyMeta, mergeDay, type DayFile, type DohFeed, type DohFlood, type Meta } from '../../src/data/history.ts';
 
 export interface BmaReading { code: string; th: string; en: string; lng: number; lat: number; cm: number; updated: string }
 interface Payload { fetchedAt: string; readings: BmaReading[] }
@@ -25,6 +25,25 @@ export default async (req: Request) => {
   const token = process.env.INGEST_TOKEN;
   if (!token) return json({ error: 'ingest disabled' }, 503);
   if (req.headers.get('authorization') !== `Bearer ${token}`) return json({ error: 'unauthorized' }, 401);
+
+  // Dept. of Highways relay (the Mac fetches it; DOH doesn't answer overseas servers). Re-validated here.
+  if (new URL(req.url).searchParams.get('kind') === 'doh') {
+    try {
+      const body = (await req.json()) as { items: DohFlood[] };
+      if (!Array.isArray(body.items) || body.items.length > 5000) throw new Error('bad items');
+      const str = (x: unknown, n: number) => String(x ?? '').slice(0, n);
+      const items: DohFlood[] = body.items.map((d) => ({
+        id: str(d.id, 20), lng: Number(d.lng), lat: Number(d.lat), province: str(d.province, 60), amphoe: str(d.amphoe, 60), road: str(d.road, 10),
+        section: str(d.section, 200), km: str(d.km, 40), direction: str(d.direction, 60), depth: str(d.depth, 40),
+        cm: Number.isFinite(Number(d.cm)) && d.cm != null ? Number(d.cm) : null, cause: str(d.cause, 200), impassable: d.impassable === true,
+        closure: str(d.closure, 100), detour: str(d.detour, 300), start: str(d.start, 40),
+      })).filter((d) => d.lat > 5 && d.lat < 21 && d.lng > 97 && d.lng < 106);
+      await store.setJSON('doh', { fetchedAt: new Date().toISOString(), items } satisfies DohFeed);
+      return json({ ok: true, items: items.length });
+    } catch (e) {
+      return json({ error: String(e) }, 400);
+    }
+  }
 
   let p: Payload;
   try {

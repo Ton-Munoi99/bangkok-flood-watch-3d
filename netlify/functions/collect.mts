@@ -7,7 +7,7 @@ import tls from 'node:tls';
 import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
   BMA_FRESH_MS, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
-  emptyDay, emptyMeta, mergeDay, parseDams, parseDoh, parseProvinces, DOH_DASHBOARD, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type DohFeed, type Meta, type Provinces, type TmdFeed, type Upstream,
+  emptyDay, emptyMeta, mergeDay, parseDams, parseProvinces, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
@@ -46,11 +46,8 @@ export default async () => {
     // The feed also carries recent expired events, so this backfills itself.
     getJson(LONGDO_EVENTS).then((d) => parseLongdoEvents(d).forEach((e) => b.event(e, now))),
     getJson(LONGDO_TRAFFIC_INDEX).then((d) => Number.isFinite(d.index) && b.traffic(Number(d.time) * 1000, Number(d.index))),
-    // Dept. of Highways flooded sections (incidents open and close within hours). 14 days back catches long-running ones.
-    getJson(`${DOH_DASHBOARD}?${new URLSearchParams({ start: slot(now - 14 * 86400_000).day, end: slot(now).day })}`)
-      .then((d) => store.setJSON('doh', { fetchedAt: new Date(now).toISOString(), items: parseDoh(d) } satisfies DohFeed)),
   ]);
-  const names = ['flood_road', 'waterlevel', 'rain', 'canal_waterlevel', 'traffy', 'longdo_events', 'traffic_index', 'doh'];
+  const names = ['flood_road', 'waterlevel', 'rain', 'canal_waterlevel', 'traffy', 'longdo_events', 'traffic_index'];
   results.forEach((r, i) => r.status === 'rejected' && console.error(`source ${names[i]} failed:`, r.reason));
 
   await store.setJSON('meta', meta);
