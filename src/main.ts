@@ -5,6 +5,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
+import provincesGeoUrl from '../data/th_provinces.geojson?url';
+import { provinceLevel } from './data/history';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, type DohFlood, type DwrCamera, type Trend,
@@ -72,7 +74,10 @@ const T = {
     lyEvents: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsList: 'เหตุการณ์น้ำท่วม (iTIC/Longdo)', eventsEmpty: 'ไม่มีเหตุการณ์น้ำท่วมที่ยังไม่คลี่คลาย',
     impassable: '🚫 ถนนที่รถเล็กไม่ควรผ่าน', impassableTag: 'รถเล็กไม่ควรผ่าน', evBy: 'ลงข้อมูลโดย', evWhen: 'ช่วงเวลา', evOpen: 'ดูบน iTIC Live',
     byLabel: { doh: 'เจ้าหน้าที่กรมทางหลวง', itic: 'เจ้าหน้าที่ iTIC', public: 'ผู้ใช้แอป iTIC' } as Record<string, string>, events: 'เหตุการณ์',
-    srcDoh: 'ทางหลวง: กรมทางหลวง (HDMS)', lyDoh: 'ทางหลวงน้ำท่วม กรมทางหลวง (ทั่วประเทศ)',
+    srcDoh: 'ทางหลวง: กรมทางหลวง (HDMS)', lyDoh: 'ทางหลวงน้ำท่วม กรมทางหลวง',
+    nationBtn: '🗺️ ต่างจังหวัด', nationTip: 'แสดงสีรายจังหวัด ทางหลวง และกล้องทั่วประเทศ (ปิด = เฉพาะ กทม.)',
+    provLegend: 'สีจังหวัด (แม่น้ำ/ทางหลวง ไม่ใช่เซนเซอร์ถนนแบบ กทม.): แดง = สถานีล้นตลิ่ง 3 จุดขึ้นไป · ส้ม = ล้นตลิ่ง 1–2 จุด หรือทางหลวงผ่านไม่ได้ · เหลือง = ใกล้ล้นตลิ่ง หรือทางหลวงมีน้ำท่วม · เขียว = สถานีปกติ · เทา = ไม่มีรายงานใน 6 ชม.',
+    provNoData: 'ไม่มีสถานีรายงานใน 6 ชม.',
     dohTitle: (n: number, x: number) => `🛣️ ทางหลวงน้ำท่วม (${n}) · ผ่านไม่ได้ ${x}`, dohNo: 'ผ่านไม่ได้', dohYes: 'ผ่านได้', dohRoad: 'ทางหลวงหมายเลข',
     dohDepth: 'ระดับน้ำ', dohKm: 'ช่วง กม.', dohCause: 'สาเหตุ', dohDetour: 'ทางเลี่ยง', dohSide: 'ช่องทาง', dohOpen: 'ดูที่ระบบกรมทางหลวง',
     dohNote: 'รายงานโดยเจ้าหน้าที่กรมทางหลวง เฉพาะทางหลวงแผ่นดิน ไม่รวมถนนในเมือง', nearDoh: 'ทางหลวงน้ำท่วม',
@@ -82,7 +87,7 @@ const T = {
     stuckRoad: (h: number) => `⚠️ ค่าเท่าเดิมมา ${h} ชม. อาจเป็นค่าค้างหรือค่าประมาณ (ไม่ใช่ค่าวัดสด) จึงไม่นับในสรุปและสีของเขต`,
     stuckCanal: (h: number) => `⚠️ ค่าไม่เปลี่ยนมา ${h} ชม. เครื่องวัดอาจค้าง`, stuckSum: (n: number) => ` · ไม่นับ ${n} จุดที่ค่าไม่เปลี่ยนเกิน 6 ชม. (อาจค้าง)`,
     trend1h: '1 ชม.', trend24h: '24 ชม.', trendLbl: 'เปลี่ยนแปลง',
-    lyDwr: 'กล้องแม่น้ำ/คลอง กรมทรัพยากรน้ำ (ทั่วประเทศ)', dwrAgency: 'กรมทรัพยากรน้ำ', dwrLoading: 'กำลังโหลดภาพ…', dwrFail: 'โหลดภาพไม่ได้ในขณะนี้',
+    lyDwr: 'กล้องแม่น้ำ/คลอง กรมทรัพยากรน้ำ', dwrAgency: 'กรมทรัพยากรน้ำ', dwrLoading: 'กำลังโหลดภาพ…', dwrFail: 'โหลดภาพไม่ได้ในขณะนี้',
     dwrOld: 'ภาพเก่ากว่า 1 ชม. อาจไม่ใช่สภาพปัจจุบัน', dwrShot: 'ถ่ายเมื่อ', dwrNote: 'ภาพประกอบเท่านั้น ไม่ใช่ค่าระดับน้ำ', dwrOpen: 'ดูสถานีที่เว็บกรมทรัพยากรน้ำ', dwrProv: 'จังหวัด',
     lyCams: 'กล้องจราจร (Longdo/iTIC)', camTitle: 'กล้องจราจร', camOwner: 'เจ้าของกล้อง', camOpen: 'ดูภาพสดที่ Longdo Traffic',
     camNear: (name: string, m: number) => `📷 กล้องใกล้จุดนี้ (${m} ม.): ${name}`,
@@ -169,7 +174,10 @@ const T = {
     lyEvents: 'Flood incidents (iTIC/Longdo)', eventsList: 'Flood incidents (iTIC/Longdo)', eventsEmpty: 'No active flood incidents',
     impassable: '🚫 Roads impassable for small cars', impassableTag: 'impassable for small cars', evBy: 'Posted by', evWhen: 'Period', evOpen: 'View on iTIC Live',
     byLabel: { doh: 'DOH staff', itic: 'iTIC staff', public: 'iTIC app user' } as Record<string, string>, events: 'incidents',
-    srcDoh: 'Highways: Dept. of Highways (HDMS)', lyDoh: 'Flooded highways, Dept. of Highways (nationwide)',
+    srcDoh: 'Highways: Dept. of Highways (HDMS)', lyDoh: 'Flooded highways, Dept. of Highways',
+    nationBtn: '🗺️ Provinces', nationTip: 'Show province colours, highways and cameras nationwide (off = Bangkok only)',
+    provLegend: 'Province colours (rivers/highways, not Bangkok-style road sensors): red = 3+ stations over bank · orange = 1–2 over bank or an impassable highway · yellow = near bank or a flooded highway · green = stations normal · grey = no report in 6 h',
+    provNoData: 'No station reported in the last 6 h',
     dohTitle: (n: number, x: number) => `🛣️ Flooded highways (${n}) · impassable ${x}`, dohNo: 'Impassable', dohYes: 'Passable', dohRoad: 'Highway',
     dohDepth: 'Water depth', dohKm: 'Km', dohCause: 'Cause', dohDetour: 'Detour', dohSide: 'Lanes', dohOpen: 'View on DOH system',
     dohNote: 'Reported by Dept. of Highways staff · national highways only, not city streets', nearDoh: 'Flooded highways',
@@ -179,7 +187,7 @@ const T = {
     stuckRoad: (h: number) => `⚠️ Same value for ${h} h — likely stuck or an estimate, not a live reading; left out of the summary and district colours`,
     stuckCanal: (h: number) => `⚠️ Unchanged for ${h} h — the gauge may be stuck`, stuckSum: (n: number) => ` · ${n} points unchanged for 6+ h (possibly stuck) not counted`,
     trend1h: '1 h', trend24h: '24 h', trendLbl: 'Change',
-    lyDwr: 'River/canal cameras, Dept. of Water Resources (nationwide)', dwrAgency: 'Dept. of Water Resources', dwrLoading: 'Loading image…', dwrFail: 'Image unavailable right now',
+    lyDwr: 'River/canal cameras, Dept. of Water Resources', dwrAgency: 'Dept. of Water Resources', dwrLoading: 'Loading image…', dwrFail: 'Image unavailable right now',
     dwrOld: 'Image is over 1 h old — may not show current conditions', dwrShot: 'Taken', dwrNote: 'For context only — not a water-level reading', dwrOpen: 'Station on DWR website', dwrProv: 'Province',
     lyCams: 'Traffic cameras (Longdo/iTIC)', camTitle: 'Traffic camera', camOwner: 'Owner', camOpen: 'Live view on Longdo Traffic',
     camNear: (name: string, m: number) => `📷 Nearest camera (${m} m): ${name}`,
@@ -267,7 +275,12 @@ let loaded = false; // false until the first fetch finishes — avoids showing a
 let cameras: Camera[] = [];
 let dwrCams: DwrCamera[] = [];
 let doh: Result<DohFlood> = { items: [], snapshot: false };
-const dohLive = () => (historyAt == null ? doh.items : []);
+// Bangkok is the focus: nationwide layers (province colours, highways, DWR cameras) show only when 🗺️ is ticked.
+const BKK_TH = 'กรุงเทพมหานคร';
+let nationOn = false;
+try { nationOn = localStorage.getItem('nation') === '1'; } catch { /* storage blocked */ }
+const dohLive = () => (historyAt == null ? doh.items : []).filter((d) => nationOn || d.province === BKK_TH);
+const dwrShown = () => dwrCams.filter((c) => nationOn || c.province === BKK_TH);
 // Live mode only: from the last ~26 h of history. Refetched at most every 20 min.
 let trends: Awaited<ReturnType<typeof fetchTrends>> = null, trendsAt = 0;
 const STUCK_ROAD_H = 6, STUCK_CANAL_H = 12;
@@ -450,7 +463,8 @@ map.on('load', async () => {
     },
   });
   map.addLayer({
-    id: 'dwr-cams', type: 'symbol', source: 'dwr-cams', layout: { 'icon-image': 'dwr-icon', 'icon-allow-overlap': true },
+    // Hidden at country scale (126 icons would bury the province colours); they appear once you zoom into a region.
+    id: 'dwr-cams', type: 'symbol', source: 'dwr-cams', minzoom: 7, layout: { 'icon-image': 'dwr-icon', 'icon-allow-overlap': true },
   });
   map.addLayer({
     id: 'road', type: 'circle', source: 'road',
@@ -471,7 +485,7 @@ map.on('load', async () => {
   });
 
   // Click priority: most specific layer first.
-  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill'];
+  const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill', 'prov-fill'];
   map.on('click', (e) => {
     // A few pixels of slack so small markers are easy to hit (especially by finger).
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]];
@@ -483,7 +497,8 @@ map.on('load', async () => {
     else if (f.layer.id === 'reports') showReport(reports.items[i]);
     else if (f.layer.id === 'rain') showRain(rain.items[i]);
     else if (f.layer.id === 'cameras') showCamera(cameras[i]);
-    else if (f.layer.id === 'dwr-cams') showDwrCamera(dwrCams[i]);
+    else if (f.layer.id === 'dwr-cams') showDwrCamera(dwrShown()[i]);
+    else if (f.layer.id === 'prov-fill') showProvinceByCode(String(f.id), e.lngLat);
     else if (f.layer.id === 'doh') showDoh(dohLive()[i]);
     else if (f.layer.id === 'events') showEvent(events.items[i]);
     else showDistrict(districts.find((d) => d.code === f.id)!, e.lngLat);
@@ -499,6 +514,7 @@ map.on('load', async () => {
   if (innerWidth >= 1200 && innerHeight >= 800) (document.querySelector('details.layers') as HTMLDetailsElement).open = true;
   wireControls();
   applyLang();
+  setNation(nationOn, false); // restore the viewer's last choice without moving the map
   // Camera list is static-ish and optional: load once, never block the page on it.
   fetchCameras().then((c) => {
     cameras = c;
@@ -506,7 +522,7 @@ map.on('load', async () => {
   }).catch((e) => console.warn('camera list unavailable', e));
   fetch(dwrCamsUrl).then((r) => r.json()).then((d: { cameras: DwrCamera[] }) => {
     dwrCams = d.cameras;
-    setData('dwr-cams', fc(dwrCams, (x) => [x.lng, x.lat], () => ({})));
+    setData('dwr-cams', fc(dwrShown(), (x) => [x.lng, x.lat], () => ({})));
   }).catch((e) => console.warn('DWR camera list unavailable', e));
   await refresh(firstFetch);
   setInterval(() => historyAt == null && refresh(), 5 * 60 * 1000);
@@ -520,7 +536,7 @@ const firstFetch = fetchAll();
 async function refresh(pending = fetchAll()) {
   if (historyAt != null) return showHistory(historyAt);
   $('refresh').setAttribute('disabled', '');
-  fetchUpstream().then((v) => { upstream = v; render(); });
+  fetchUpstream().then((v) => { upstream = v; render(); colourProvinces(); });
   fetchDoh().then((v) => { doh = v; apply(); });
   if (Date.now() - trendsAt > 20 * 60_000) {
     trendsAt = Date.now();
@@ -585,6 +601,7 @@ function apply() {
   setData('reports', fc(reports.items, (r) => [r.lng, r.lat], () => ({})));
   setData('events', fc(events.items, (e) => [e.lng, e.lat], (e) => ({ x: e.impassable })));
   setData('doh', fc(dohLive(), (d) => [d.lng, d.lat], (d) => ({ x: d.impassable })));
+  colourProvinces();
   render();
 }
 
@@ -767,14 +784,14 @@ function render() {
       c13 + (dams || `<div class="empty">${L.upNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.upNote}</div>`);
   }
 
-  const prov = historyAt == null ? upstream?.provinces?.rows : null;
+  const prov = historyAt == null && nationOn ? upstream?.provinces?.rows : null;
   if (prov?.length) {
     const hit = prov.filter((p) => p.over || p.near);
     const items = hit.map((p) => `<button class="item" style="--c:${p.over ? LEVEL_COLORS[3] : LEVEL_COLORS[2]}" data-prov="${prov.indexOf(p)}">
       <div class="t"><span>${esc(lang === 'th' ? p.th : p.en)}</span><span>${p.over}/${p.n}</span></div><div class="s">${L.provRow(p.over, p.near, p.n)}</div></button>`);
     const sum = (k: 'over' | 'n') => prov.reduce((a, p) => a + p[k], 0);
     html += section('provinces', L.provTitle(sum('over'), sum('n'), prov.filter((p) => p.over).length),
-      (items.length ? list(items, 5, L.more) : `<div class="empty">${L.provNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.provNote}</div>`);
+      `<div class="empty" style="margin:0 0 6px">${L.provLegend}</div>` + (items.length ? list(items, 5, L.more) : `<div class="empty">${L.provNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.provNote}</div>`);
   }
 
   // Last, as asked: roads staff reported as impassable for small cars.
@@ -849,6 +866,49 @@ function showEvent(e: FloodEvent, fly = false) {
     `<div class="r"><a href="https://live.iticfoundation.org/" target="_blank" rel="noopener">${L.evOpen} ↗</a></div>` + nearCameraRow(e), fly);
 }
 let dwrObjectUrl = '';
+// ---------- 🗺️ nationwide mode ----------
+let provGeo: { features: { properties: { code: string } }[] } | null = null;
+async function ensureProvinceLayer() {
+  if (provGeo) return;
+  provGeo = await (await fetch(provincesGeoUrl)).json();
+  map.addSource('provinces', { type: 'geojson', data: provGeo as never, promoteId: 'code', attribution: 'Province boundaries: geoBoundaries / © OpenStreetMap contributors (ODbL)' });
+  const lvl: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
+  map.addLayer({ id: 'prov-fill', type: 'fill', source: 'provinces', layout: { visibility: nationOn ? 'visible' : 'none' }, paint: {
+    'fill-color': ['match', lvl, 0, LEVEL_COLORS[0], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], NO_DATA_COLOR],
+    'fill-opacity': ['interpolate', ['linear'], ['zoom'], 6, ['case', ['<', lvl, 0], 0.15, 0.4], 10, ['case', ['<', lvl, 0], 0.05, 0.15]],
+  } }, 'district-fill');
+  map.addLayer({ id: 'prov-line', type: 'line', source: 'provinces', layout: { visibility: nationOn ? 'visible' : 'none' },
+    paint: { 'line-color': '#56627a', 'line-width': 0.8, 'line-opacity': 0.7 } }, 'district-fill');
+  colourProvinces();
+}
+function colourProvinces() {
+  if (!provGeo) return;
+  const byCode = new Map((upstream?.provinces?.rows ?? []).map((r) => [r.code, r]));
+  for (const f of provGeo.features) {
+    const r = byCode.get(f.properties.code);
+    const level = historyAt == null ? provinceLevel(r, r ? doh.items.filter((d) => d.province === r.th) : []) : -1;
+    map.setFeatureState({ source: 'provinces', id: f.properties.code }, { level });
+  }
+}
+function setNation(on: boolean, move = true) {
+  nationOn = on;
+  try { localStorage.setItem('nation', on ? '1' : '0'); } catch { /* storage blocked */ }
+  $<HTMLInputElement>('lyNation').checked = on;
+  $('nationLbl').classList.toggle('on', on);
+  if (on) ensureProvinceLayer();
+  for (const l of ['prov-fill', 'prov-line']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
+  setData('dwr-cams', fc(dwrShown(), (x) => [x.lng, x.lat], () => ({})));
+  apply();
+  if (!move) return;
+  popup.remove();
+  if (on) map.fitBounds([[97.3, 5.6], [105.7, 20.5]], { padding: 30, pitch: 0, duration: 1500 });
+  else map.flyTo({ center: [100.56, 13.77], zoom: 10.6, pitch: 45, duration: 1500 });
+}
+function showProvinceByCode(code: string, at: maplibregl.LngLat) {
+  const r = upstream?.provinces?.rows.find((x) => x.code === code);
+  if (r) return showProvince(r, at);
+  open(at, `<div class="empty">${t().provNoData}</div>`);
+}
 function showDoh(d: DohFlood, fly = false) {
   const L = t();
   open([d.lng, d.lat], `<b>🛣️ ${L.dohRoad} ${esc(Number(d.road) || d.road)} ${esc(d.section)}</b>` +
@@ -948,11 +1008,11 @@ function nearestSensorRow(d: District) {
   for (const r of road.items) { const m = metres(c, r); if (m < bestM) { best = r; bestM = m; } }
   return `<div class="empty" style="margin-top:4px">${esc(t().nearestSensor(name(best), (bestM / 1000).toFixed(1), best.cm))}</div>`;
 }
-function showProvince(p: ProvinceSum) {
+function showProvince(p: ProvinceSum, at?: maplibregl.LngLat) {
   const L = t();
-  map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
+  if (!at) map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
   const cams = dwrCams.filter((c) => c.province === p.th).length, hw = dohLive().filter((d) => d.province === p.th);
-  open([p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (hw.length ? row(`🛣️ ${L.nearDoh}`, `${hw.length} · ${L.dohNo} ${hw.filter((d) => d.impassable).length}`) : '') + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
+  open(at ?? [p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (hw.length ? row(`🛣️ ${L.nearDoh}`, `${hw.length} · ${L.dohNo} ${hw.filter((d) => d.impassable).length}`) : '') + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
     <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>`);
 }
 /** 📍 near me: everything currently loaded within 2 km of a point, shown in the map popup. */
@@ -1011,6 +1071,7 @@ function wireControls() {
   toggle('lyCams', (on) => setVis(['cameras'], on));
   toggle('lyDwr', (on) => setVis(['dwr-cams'], on));
   toggle('lyDoh', (on) => setVis(['doh'], on));
+  $<HTMLInputElement>('lyNation').addEventListener('change', (e) => setNation((e.target as HTMLInputElement).checked));
   toggle('lyEvents', (on) => setVis(['events'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));
   toggle('lyBuild', (on) => setVis(['buildings-3d'], on));
@@ -1117,6 +1178,7 @@ function applyLang() {
   $('linksList').innerHTML = L.links.map(([n, u, d]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a><small>${esc(d)}</small></li>`).join('');
   $('hotlineList').innerHTML = L.hotlines.map(([n, who]) => `<li><span>${esc(who)}</span><a href="tel:${n.replace(/-/g, '')}">${n}</a></li>`).join('');
   $('trafficBtn').title = L.trafficTip;
+  $('nationLbl').title = L.nationTip;
   document.querySelector('.layers summary')!.innerHTML = `${esc(L.layers)} <small>— ${esc(L.layersHint)}</small>`;
   $('trafficIdx').title = L.trafficTipIdx;
   for (const id of ['rotL', 'rotR', 'spinBtn'] as const) {

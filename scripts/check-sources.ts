@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, provinceLevel } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -135,3 +135,11 @@ console.log('provinces ok');
   assert.ok(!JSON.stringify(out).includes('0812345678') && !JSON.stringify(out).includes('นาย ก'));
   console.log('doh ok');
 }
+
+// Province colours: stations and highways, whichever is worse.
+assert.deepStrictEqual([
+  provinceLevel({ n: 10, over: 3, near: 0 }, []), provinceLevel({ n: 10, over: 1, near: 0 }, []), provinceLevel({ n: 10, over: 0, near: 2 }, []),
+  provinceLevel({ n: 10, over: 0, near: 0 }, []), provinceLevel(undefined, []), provinceLevel(undefined, [{ impassable: false }]),
+  provinceLevel({ n: 5, over: 0, near: 0 }, [{ impassable: true }]),
+], [3, 2, 1, 0, -1, 1, 2]);
+console.log('province level ok');

@@ -270,13 +270,13 @@ async function reportsFromCollector(at: number): Promise<Report[]> {
 export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report>; events: Result<FloodEvent>; traffic: number | null }
 const WINDOW = 3600_000; // a reading counts as "current" at time T for up to an hour
 
-/** Dept. of Highways flooded sections, via our collector (every 10 min). Older than 1 h = labelled; older than 6 h = hidden. */
+/** Dept. of Highways flooded sections, relayed hourly by the Mac collector. Older than 90 min = labelled; older than 6 h = hidden. */
 export async function fetchDoh(): Promise<Result<DohFlood>> {
   try {
     const f = (await getJson('/api/history/doh')) as DohFeed;
     const age = Date.now() - Date.parse(f.fetchedAt);
     if (age > STALE_MS) return { items: [], snapshot: true, stale: true, asOf: f.fetchedAt };
-    return { items: f.items, snapshot: age > 3600_000, asOf: f.fetchedAt };
+    return { items: f.items, snapshot: age > 90 * 60_000, asOf: f.fetchedAt };
   } catch (e) {
     return { items: [], snapshot: false, stale: true, error: String(e) };
   }

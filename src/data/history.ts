@@ -359,3 +359,13 @@ export function parseDoh(rows: DohRaw[]): DohFlood[] {
     };
   });
 }
+
+/** Province colour for the nationwide view (0 green … 3 red, -1 no data). Rivers and highways only — not the
+ *  Bangkok road-sensor scale:
+ *  3 = 3+ stations over bank · 2 = 1–2 over bank, or an impassable highway · 1 = near bank, or a flooded (passable) highway
+ *  · 0 = stations reporting, all normal · -1 = no station reported in 6 h and no highway report. */
+export function provinceLevel(p: { n: number; over: number; near: number } | undefined, hw: { impassable: boolean }[]): -1 | 0 | 1 | 2 | 3 {
+  const st = !p ? -1 : p.over >= 3 ? 3 : p.over ? 2 : p.near ? 1 : 0;
+  const road = hw.some((h) => h.impassable) ? 2 : hw.length ? 1 : -1;
+  return Math.max(st, road) as -1 | 0 | 1 | 2 | 3;
+}

@@ -137,6 +137,9 @@ input[type=checkbox] { accent-color: var(--accent); }
 /* quick actions + dialogs (hotlines, rain forecast) */
 .quick-row { display: flex; gap: 6px; margin: 0 0 6px; flex-wrap: wrap; }
 .quick-row .btn { margin: 0; }
+.btn.nation { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.btn.nation input { margin: 0; accent-color: var(--accent); }
+.btn.nation.on { border-color: var(--accent); color: var(--accent); }
 .dlg { color: var(--text); padding: 12px 14px; width: min(420px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; }
 .dlg::backdrop { background: rgba(0, 0, 0, .45); }
 .care { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--l2); border-radius: 8px; background: rgba(245, 146, 75, .08); }
