@@ -399,7 +399,7 @@ export function amphoeLevel(a: { over: number; near: number; stations: number; r
 
 /** Nationwide points for the amphoe view, kept compact: [lng, lat, situation 1–5] and [lng, lat, mm in 24 h].
  *  Readings older than 6 h are dropped (a silent gauge must not colour an amphoe). */
-export interface NationPoints { fetchedAt: string; wl: [number, number, number][]; rain: [number, number, number][] }
+export interface NationPoints { fetchedAt: string; wl: [number, number, number][]; rain: [number, number, number][]; top?: Rankings }
 export function parseNation(wlRows: TwNationRow[], rainRows: { rain_24h: number | null; rainfall_datetime: string; station: { tele_station_lat: number; tele_station_long: number } }[], now: number) {
   const fresh = (t: string) => now - bkkMs(t) <= 6 * 3600_000;
   const xy = (s: { tele_station_lat: number; tele_station_long: number }) => [+Number(s?.tele_station_long).toFixed(4), +Number(s?.tele_station_lat).toFixed(4)] as const;
@@ -407,4 +407,37 @@ export function parseNation(wlRows: TwNationRow[], rainRows: { rain_24h: number 
     wl: wlRows.filter((r) => r.situation_level && fresh(r.waterlevel_datetime) && r.station?.tele_station_lat).map((r) => [...xy(r.station), Number(r.situation_level)] as [number, number, number]),
     rain: rainRows.filter((r) => r.rain_24h != null && fresh(r.rainfall_datetime) && r.station?.tele_station_lat).map((r) => [...xy(r.station), Number(r.rain_24h)] as [number, number, number]),
   };
+}
+
+// ---------- ThaiWater-style "top 10 provinces" lists (highest station per province) ----------
+export interface TopRow { prov: string; station: string; value: number; time: string; lng: number; lat: number }
+export interface Rankings { rain: TopRow[]; water: TopRow[] }
+type Geo = { geocode?: { province_name?: { th?: string } } };
+/** Rain: max 24 h rain per province. Water: max metres over bank per province, from telemetry (ThaiWater's own
+ *  over-bank figure) and canal gauges with a real bank level. Readings older than 6 h are ignored. Top 10 each. */
+export function parseRankings(
+  wlRows: (TwNationRow & Geo & { diff_wl_bank?: string | null; station: { tele_station_name?: { th?: string } } })[],
+  rainRows: (Geo & { rain_24h: number | null; rainfall_datetime: string; station: { tele_station_lat: number; tele_station_long: number; tele_station_name?: { th?: string } } })[],
+  canalRows: (TwCanalRow & Geo)[], now: number,
+): Rankings {
+  const fresh = (t?: string | null) => !!t && now - bkkMs(t) <= 6 * 3600_000;
+  const prov = (r: Geo) => r.geocode?.province_name?.th ?? '';
+  const top = (rows: TopRow[]) => {
+    const best = new Map<string, TopRow>();
+    for (const r of rows) if (r.prov && (!best.has(r.prov) || r.value > best.get(r.prov)!.value)) best.set(r.prov, r);
+    return [...best.values()].sort((a, b) => b.value - a.value).slice(0, 10);
+  };
+  const rain = rainRows.filter((r) => r.rain_24h != null && r.rain_24h > 0 && fresh(r.rainfall_datetime)).map((r) => ({
+    prov: prov(r), station: String(r.station?.tele_station_name?.th ?? '').trim(), value: Number(r.rain_24h), time: r.rainfall_datetime,
+    lng: Number(r.station?.tele_station_long), lat: Number(r.station?.tele_station_lat) }));
+  const tele = wlRows.filter((r) => r.situation_level === 5 && fresh(r.waterlevel_datetime) && Number(r.diff_wl_bank) > 0).map((r) => ({
+    prov: prov(r), station: String(r.station?.tele_station_name?.th ?? '').trim(), value: +Number(r.diff_wl_bank).toFixed(2), time: r.waterlevel_datetime,
+    lng: Number(r.station?.tele_station_long), lat: Number(r.station?.tele_station_lat) }));
+  const canal = canalRows.flatMap((r) => {
+    const bank = realBank(r.station?.bank), v = Number(r.canal_value);
+    if (bank == null || r.canal_value == null || !fresh(r.canal_datetime) || v < bank) return [];
+    return [{ prov: prov(r), station: String(r.station?.canal_name?.th ?? '').trim(), value: +(v - bank).toFixed(2), time: r.canal_datetime!,
+      lng: Number(r.station?.canal_long), lat: Number(r.station?.canal_lat) }];
+  });
+  return { rain: top(rain), water: top([...tele, ...canal]) };
 }

@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, type Ring } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -164,4 +164,22 @@ console.log('province level ok');
     [{ rain_24h: 95.5, rainfall_datetime: '2026-09-27 11:30', station: st }, { rain_24h: null, rainfall_datetime: '2026-09-27 11:30', station: st }], now);
   assert.deepStrictEqual(n, { wl: [[100.6543, 14.1235, 5]], rain: [[100.6543, 14.1235, 95.5]] });
   console.log('nation points ok');
+}
+
+// Rankings: one row per province (its highest), stale and below-bank readings dropped, highest first.
+{
+  const now = Date.parse('2026-09-27T20:00:00+07:00');
+  const g = (p: string) => ({ geocode: { province_code: '1', province_name: { th: p, en: p } } });
+  const st = (n: string) => ({ tele_station_lat: 14, tele_station_long: 100, tele_station_name: { th: n } });
+  const r = parseRankings(
+    [{ ...g('กาญจนบุรี'), waterlevel_datetime: '2026-09-27 19:00', situation_level: 5, diff_wl_bank: '6.04', station: st('ปากแซง') },
+     { ...g('กาญจนบุรี'), waterlevel_datetime: '2026-09-27 19:00', situation_level: 5, diff_wl_bank: '1.00', station: st('อื่น') },
+     { ...g('ตาก'), waterlevel_datetime: '2026-09-26 19:00', situation_level: 5, diff_wl_bank: '9', station: st('เก่า') }] as never,
+    [{ ...g('ระยอง'), rain_24h: 286, rainfall_datetime: '2026-09-27 18:00', station: st('หาดใหญ่') },
+     { ...g('ตาก'), rain_24h: 0, rainfall_datetime: '2026-09-27 18:00', station: st('แห้ง') }] as never,
+    [{ ...g('กรุงเทพมหานคร'), canal_datetime: '2026-09-27 19:30', canal_value: 2.77, station: { canal_name: { th: 'คลองลาดพร้าว' }, bank: 2.2, canal_lat: 13.8, canal_long: 100.6 } },
+     { ...g('นนทบุรี'), canal_datetime: '2026-09-27 19:30', canal_value: 1.0, station: { canal_name: { th: 'ต่ำ' }, bank: 2.0 } }] as never, now);
+  assert.deepStrictEqual(r.water.map((x) => [x.prov, x.station, x.value]), [['กาญจนบุรี', 'ปากแซง', 6.04], ['กรุงเทพมหานคร', 'คลองลาดพร้าว', 0.57]]);
+  assert.deepStrictEqual(r.rain.map((x) => [x.prov, x.value]), [['ระยอง', 286]]);
+  console.log('rankings ok');
 }

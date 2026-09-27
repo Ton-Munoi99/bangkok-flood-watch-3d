@@ -5,9 +5,9 @@
 
 import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
-  parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
+  parseC13, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type TopRow, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
-export type { NationPoints, DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
+export type { TopRow, NationPoints, DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
 export { bkkMs, parseLatLng };
 
 export type Level = 0 | 1 | 2 | 3; // ปกติ / เฝ้าระวัง / เสี่ยงสูง / ท่วมหนัก
