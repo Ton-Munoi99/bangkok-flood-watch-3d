@@ -11,7 +11,7 @@ import {
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
-  const r = await fetch(url, { signal: AbortSignal.timeout(20_000), headers: { 'user-agent': 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)' } });
+  const r = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { 'user-agent': 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)' } });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
 };
@@ -46,8 +46,12 @@ export default async () => {
     // The feed also carries recent expired events, so this backfills itself.
     getJson(LONGDO_EVENTS).then((d) => parseLongdoEvents(d).forEach((e) => b.event(e, now))),
     getJson(LONGDO_TRAFFIC_INDEX).then((d) => Number.isFinite(d.index) && b.traffic(Number(d.time) * 1000, Number(d.index))),
+    // Dept. of Highways flooded sections (incidents open and close within hours). 14 days back catches long-running ones.
+    getJson(`${DOH_DASHBOARD}?${new URLSearchParams({ start: slot(now - 14 * 86400_000).day, end: slot(now).day })}`)
+      .then((d) => store.setJSON('doh', { fetchedAt: new Date(now).toISOString(), items: parseDoh(d) } satisfies DohFeed)),
   ]);
-  for (const r of results) if (r.status === 'rejected') console.error('source failed:', r.reason);
+  const names = ['flood_road', 'waterlevel', 'rain', 'canal_waterlevel', 'traffy', 'longdo_events', 'traffic_index', 'doh'];
+  results.forEach((r, i) => r.status === 'rejected' && console.error(`source ${names[i]} failed:`, r.reason));
 
   await store.setJSON('meta', meta);
   const oldest = slot(now - HISTORY_DAYS * 86400_000).day;
@@ -77,13 +81,6 @@ export default async () => {
     } catch (e) { console.error('tmd failed:', e); }
   }
 
-  // Dept. of Highways flooded sections, every run (incidents open and close within hours). 14 days back catches long-running ones.
-  try {
-    const q = new URLSearchParams({ start: slot(now - 14 * 86400_000).day, end: slot(now).day });
-    const items = parseDoh(await getJson(`${DOH_DASHBOARD}?${q}`));
-    await store.setJSON('doh', { fetchedAt: new Date(now).toISOString(), items } satisfies DohFeed);
-  } catch (e) { console.error('doh failed:', e); }
-
   // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
   const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;
   if (!prov || now - Date.parse(prov.fetchedAt) > 30 * 60_000) {
@@ -95,7 +92,7 @@ export default async () => {
 
   const { blobs } = await store.list({ prefix: 'day/' });
   for (const x of blobs) if (x.key.slice(4) < oldest) await store.delete(x.key);
-  console.log('collected', [...b.days.keys()].join(','), results.map((r) => r.status).join(','));
+  console.log('collected', [...b.days.keys()].filter((d) => d >= oldest).join(','), results.map((r) => r.status).join(','));
 };
 
 export const config = { schedule: '*/10 * * * *' };
