@@ -1165,9 +1165,11 @@ function showDistrict(d: District, at?: maplibregl.LngLat) {
 
 // ---------------- controls ----------------
 function wireControls() {
-  const toggle = (id: string, fn: (on: boolean) => void) => {
+  // Layers start as their checkbox says (only district colours are ticked by default), so apply that once now.
+  const toggle = (id: string, fn: (on: boolean) => void, applyNow = true) => {
     const el = $<HTMLInputElement>(id);
     el.addEventListener('change', () => fn(el.checked));
+    if (applyNow) fn(el.checked);
   };
   const setVis = (layers: string[], on: boolean) => layers.forEach((l) => map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none'));
   toggle('lyRoad', (on) => setVis(['road', 'road-label'], on));
@@ -1186,7 +1188,7 @@ function wireControls() {
   toggle('lyTerrain', (on) => {
     map.setTerrain(on ? { source: 'terrain', exaggeration: 1.5 } : null);
     $('terrainNote').hidden = !on;
-  });
+  }, false); // terrain starts off anyway; don't touch it before the user asks
 
   toggle('simMode', (on) => {
     simOn = on;
