@@ -1221,7 +1221,8 @@ async function shareLink(url: string, btn: HTMLElement) {
   if (navigator.share) { await navigator.share({ title: document.title, url }).catch(() => {}); return; }
   await navigator.clipboard?.writeText(url).then(() => (btn.textContent = t().copied)).catch(() => {});
 }
-// Shareable district links: #d=bang-kapi opens that district on load.
+// Shareable district links: #d=bang-kapi opens that district once on load (the share button makes them).
+// The address bar is not rewritten while browsing, so a refresh returns to the normal start view.
 const slug = (d: District) => d.en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const districtUrl = (d: District) => `${location.origin}${location.pathname}#d=${slug(d)}`;
 let pendingDistrict = decodeURIComponent(location.hash.match(/^#d=(.+)/)?.[1] ?? '');
@@ -1237,7 +1238,6 @@ function showDistrict(d: District, at?: maplibregl.LngLat) {
     (d.rainMax ? row(L.rainMax, `${d.rainMax.mm} mm`) : '') +
     row(L.elevSim, `${d.elev} cm`) + (simOn ? row(L.marginSim, `${margin > 0 ? '+' : ''}${Math.round(margin)} cm`) : '') +
     `<div class="r"><button class="btn small" data-share-district="${esc(d.code)}">${L.shareDistrict}</button></div>`);
-  history.replaceState(null, '', `#d=${slug(d)}`);
 }
 
 // ---------------- controls ----------------
