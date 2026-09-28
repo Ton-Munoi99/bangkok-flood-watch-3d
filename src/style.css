@@ -159,3 +159,8 @@ input[type=checkbox] { accent-color: var(--accent); }
 .hotlines a { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--l3); text-decoration: none; }
 #windyFrame { width: 100%; height: min(560px, calc(100dvh - 170px)); border: 0; border-radius: 8px; background: #0b1322; }
 .cam-img img { max-height: 180px; object-fit: contain; background: #000; }
+
+/* Hover summary: compact, and never in the way of the pointer. */
+.hover-pop { pointer-events: none; }
+.hover-pop .pop b { font-size: 13px; margin-bottom: 2px; padding-right: 0; }
+.hover-pop .pop .s { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }

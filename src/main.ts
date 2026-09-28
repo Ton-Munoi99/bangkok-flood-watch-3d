@@ -365,6 +365,8 @@ map.addControl({
   onRemove() {},
 }, 'bottom-right');
 const popup = new maplibregl.Popup({ maxWidth: '300px', focusAfterOpen: false });
+// Hover summary (mouse only): no close button, never grabs focus, doesn't close on map clicks by itself.
+const hover = new maplibregl.Popup({ maxWidth: '260px', closeButton: false, closeOnClick: false, focusAfterOpen: false, offset: 14, className: 'hover-pop' });
 
 const fc = <T>(items: T[], coords: (x: T) => [number, number], props: (x: T) => Record<string, unknown>) => ({
   type: 'FeatureCollection' as const,
@@ -516,14 +518,19 @@ map.on('load', async () => {
 
   // Click priority: most specific layer first.
   const clickable = ['road', 'events', 'canal', 'cameras', 'dwr-cams', 'doh', 'reports', 'rain', 'district-fill', 'amp-fill', 'prov-fill'];
-  map.on('click', (e) => {
-    // Slack around the tap so small markers are easy to hit: a fingertip needs more than a mouse pointer.
+  // Top-most clickable feature near a point, with some slack so small markers are easy to hit
+  // (a fingertip needs more than a mouse pointer).
+  const pick = (pt: maplibregl.Point) => {
     const k = matchMedia('(pointer: coarse)').matches ? 14 : 6;
-    const box: [maplibregl.PointLike, maplibregl.PointLike] = [[e.point.x - k, e.point.y - k], [e.point.x + k, e.point.y + k]];
+    const box: [maplibregl.PointLike, maplibregl.PointLike] = [[pt.x - k, pt.y - k], [pt.x + k, pt.y + k]];
     // Province/amphoe layers only exist after 🗺️ is first ticked; querying a missing layer throws, which
     // silently broke every tap for anyone who never ticked it. Only ask for layers that exist and are shown.
     const layers = clickable.filter((l) => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
-    const f = map.queryRenderedFeatures(box, { layers })[0];
+    return map.queryRenderedFeatures(box, { layers })[0];
+  };
+  map.on('click', (e) => {
+    hover.remove();
+    const f = pick(e.point);
     if (!f) return;
     const i = f.properties.i as number;
     if (f.layer.id === 'road') showRoad(road.items[i]);
@@ -538,6 +545,26 @@ map.on('load', async () => {
     else if (f.layer.id === 'events') showEvent(events.items[i]);
     else showDistrict(districts.find((d) => d.code === f.id)!, e.lngLat);
   });
+
+  // Mouse users: a short summary follows the pointer over districts and markers; click still opens the full popup.
+  // Touch screens have no hover, so they keep tap-only.
+  if (matchMedia('(hover: hover)').matches) {
+    let last = '', frame = 0;
+    map.on('mousemove', (e) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const f = pick(e.point);
+        const html = f && hoverHtml(f.layer.id, f.properties.i as number, f.id);
+        map.getCanvas().style.cursor = f ? 'pointer' : '';
+        if (!html) { hover.remove(); last = ''; return; }
+        const key = `${f!.layer.id}:${f!.id ?? f!.properties.i}`;
+        if (key !== last) { hover.setHTML(`<div class="pop">${html}</div>`); last = key; }
+        hover.setLngLat(e.lngLat).addTo(map);
+      });
+    });
+    map.getCanvas().addEventListener('mouseleave', () => { hover.remove(); last = ''; });
+  }
   for (const l of clickable) {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
@@ -1033,6 +1060,35 @@ function showProvinceByCode(code: string, at: maplibregl.LngLat) {
   const r = upstream?.provinces?.rows.find((x) => x.code === code);
   if (r) return showProvince(r, at);
   open(at, `<div class="empty">${t().provNoData}</div>`);
+}
+/** One-glance summary for the hover popup; '' = nothing to show. */
+function hoverHtml(layer: string, i: number, id: unknown) {
+  const L = t();
+  const line = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' · ');
+  switch (layer) {
+    case 'district-fill': {
+      const d = districts.find((x) => x.code === id);
+      if (!d) return '';
+      const lvl = simOn ? d.simLevel : d.level;
+      return `<b>${L.district}${esc(dName(d))}</b>` + `<span style="color:${lvl < 0 ? 'inherit' : LEVEL_COLORS[lvl]}">${lvl < 0 ? L.noSensor : lvlName(lvl)}</span>` +
+        `<div class="s">${line(maxCm(d) > 0 && `${L.maxRoad} ${maxCm(d)} cm`, d.road.filter((r) => r.cm > 0).length > 0 && `${L.pts} ${d.road.filter((r) => r.cm > 0).length}`, d.reports > 0 && `${L.reports} ${d.reports}`)}</div>`;
+    }
+    case 'road': { const r = road.items[i]; return r ? `<b>${esc(name(r))}</b><div class="s">${line(`${r.cm} cm`, r.cm > 0 ? lvlName(r.level) : L.noFloodReport, roadStuckH(r) > 0 && '⚠️', hhmm(r.updated))}</div>` : ''; }
+    case 'canal': { const c = canals.items[i]; return c ? `<b>${esc(name(c))}</b><div class="s">${line(`${c.wl.toFixed(2)} ${L.msl}`, canalStatus(c), c.bank != null && `${L.toBank} ${(c.bank - c.wl).toFixed(2)} m`, trendTxt(c).split(' · ')[0], hhmm(c.updated))}</div>` : ''; }
+    case 'rain': { const r = rain.items[i]; return r ? `<b>${esc(name(r))}</b><div class="s">${line(`${r.mm} mm / 24h`, r.mm1h != null && `${r.mm1h} mm / 1h`)}</div>` : ''; }
+    case 'reports': { const r = reports.items[i]; return r ? `<b>Traffy Fondue</b><div class="s">${line(esc(r.state), bkkTime(r.time))}</div>` : ''; }
+    case 'events': { const e = events.items[i]; return e ? `<b>${esc(lang === 'th' ? e.title : e.titleEn || e.title)}</b><div class="s">${line(e.impassable && `🚫 ${L.impassableTag}`, bkkTime(e.start))}</div>` : ''; }
+    case 'doh': { const d = dohLive()[i]; return d ? `<b>🛣️ ${L.dohRoad} ${esc(Number(d.road) || d.road)} ${esc(d.section)}</b><div class="s">${line(d.cm != null && `${d.cm} cm`, d.impassable ? `🚫 ${L.dohNo}` : L.dohYes)}</div>` : ''; }
+    case 'cameras': { const c = cameras[i]; return c ? `<b>📷 ${esc(c.title)}</b>` : ''; }
+    case 'dwr-cams': { const c = dwrShown()[i]; return c ? `<b>📷 ${esc(lang === 'th' ? c.th : c.en || c.th)}</b><div class="s">${L.dwrAgency}</div>` : ''; }
+    case 'amp-fill': {
+      const f = ampGeo?.features.find((x) => x.properties.id === Number(id)), st = ampStats.get(Number(id));
+      if (!f || !st) return '';
+      return `<b>${L.ampTitle} ${esc(lang === 'th' ? f.properties.th || f.properties.en : f.properties.en)}</b><div class="s">${line(st.stations > 0 && L.ampStRow(st.stations, st.over, st.near), st.rainMax != null && `${st.rainMax} mm / 24h`) || L.ampNoStation}</div>`;
+    }
+    case 'prov-fill': { const r = upstream?.provinces?.rows.find((x) => x.code === String(id)); return r ? `<b>${esc(lang === 'th' ? r.th : r.en)}</b><div class="s">${L.provRow(r.over, r.near, r.n)}</div>` : ''; }
+  }
+  return '';
 }
 function showDoh(d: DohFlood, fly = false) {
   const L = t();
