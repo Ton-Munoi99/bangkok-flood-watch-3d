@@ -222,6 +222,22 @@ export function parseC13(load: { waterlevel_data?: { data?: unknown[] } }) {
   return r ? { discharge: Number(r.discharge), time: r.waterlevel_datetime } : null;
 }
 
+/** Chao Phraya main-stem gauges, upstream → Bangkok: Chao Phraya Dam outflow, Ayutthaya (Ban Pom), Samsen, Krung Thep Bridge. */
+export const RIVER_CODES = ['C.13', 'C.35', 'C.12', 'CPY015'];
+export interface RiverRow { code: string; th: string; wl: number | null; bank: number | null; discharge: number | null; time: string; lng: number; lat: number }
+/** Pick the given stations out of waterlevel_load responses, in the order of `codes` (missing ones are skipped). */
+export function parseRiver(loads: ({ waterlevel_data?: { data?: unknown[] } } | null)[], codes = RIVER_CODES): RiverRow[] {
+  type Row = { waterlevel_msl: string | null; discharge: string | number | null; waterlevel_datetime: string;
+    station?: { tele_station_oldcode?: string; tele_station_name?: { th?: string }; min_bank?: number | string | null; tele_station_lat?: number; tele_station_long?: number } };
+  const rows = loads.flatMap((l) => (l?.waterlevel_data?.data ?? []) as Row[]);
+  const num = (x: unknown) => (x == null || x === '' || !Number.isFinite(Number(x)) ? null : Number(x));
+  return codes.flatMap((code) => {
+    const r = rows.find((x) => x.station?.tele_station_oldcode === code);
+    return r ? [{ code, th: String(r.station?.tele_station_name?.th ?? code), wl: num(r.waterlevel_msl), bank: realBank(num(r.station?.min_bank)),
+      discharge: num(r.discharge), time: r.waterlevel_datetime, lng: Number(r.station?.tele_station_long), lat: Number(r.station?.tele_station_lat) }] : [];
+  });
+}
+
 // ---------- BMA canal network (สนน., ~280 points) as relayed by ThaiWater, with real bank levels ----------
 // weather.bangkok.go.th's own canal data only has BMA's operating "critical" levels, not banks.
 export interface TwCanalRow {

@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -183,4 +183,15 @@ console.log('province level ok');
   assert.deepStrictEqual(r.water.map((x) => [x.prov, x.station, x.value]), [['กาญจนบุรี', 'ปากแซง', 6.04], ['กรุงเทพมหานคร', 'คลองลาดพร้าว', 0.57]]);
   assert.deepStrictEqual(r.rain!.map((x) => [x.prov, x.value]), [["ระยอง", 286]]);
   console.log('rankings ok');
+}
+
+// Chao Phraya rows: requested order, missing stations skipped, placeholder banks dropped.
+{
+  const st = (code: string, th: string, bank: unknown) => ({ tele_station_oldcode: code, tele_station_name: { th }, min_bank: bank, tele_station_lat: 13.8, tele_station_long: 100.5 });
+  const r = parseRiver([{ waterlevel_data: { data: [
+    { waterlevel_msl: '2.24', discharge: null, waterlevel_datetime: '2026-09-28 08:00', station: st('C.12', 'สามเสน', 2.26) },
+    { waterlevel_msl: '4.75', discharge: '1272.00', waterlevel_datetime: '2026-09-28 08:00', station: st('C.35', 'บ้านป้อม', '0') },
+  ] } }, null], ['C.13', 'C.35', 'C.12']);
+  assert.deepStrictEqual(r.map((x) => [x.code, x.wl, x.bank, x.discharge]), [['C.35', 4.75, null, 1272], ['C.12', 2.24, 2.26, null]]);
+  console.log('river ok');
 }

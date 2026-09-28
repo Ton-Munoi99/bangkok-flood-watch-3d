@@ -11,7 +11,7 @@ import { amphoeLevel, bboxOf, inPolys, provinceLevel, type Ring as PolyRing } fr
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, type DohFlood, type DwrCamera, type Trend,
-  fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type Dam, type FloodEvent, type ProvinceSum, type TopRow, type UpstreamView,
+  fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type RiverRow, type Dam, type FloodEvent, type ProvinceSum, type TopRow, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
 
@@ -38,6 +38,8 @@ const T = {
     staleBanner: 'ข้อมูลไม่พร้อมใช้งานตอนนี้ (เชื่อมต่อไม่ได้ และข้อมูลสำรองเก่าเกิน 6 ชม. จึงไม่แสดง):',
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
+    riverTitle: '🌊 แม่น้ำเจ้าพระยา (เหนือ → กทม.)', riverFlow: 'น้ำไหลผ่าน', riverSamsen: 'สามเสน', riverOver: (m: string) => `สูงกว่าตลิ่ง ${m} ม.`, riverBelow: (m: string) => `ต่ำกว่าตลิ่ง ${m} ม.`,
+    riverNote: 'ระดับน้ำ ม.รทก. เทียบตลิ่งของสถานี (ไม่ใช่ความสูงคันกั้นน้ำ) · กรมชลประทาน / สสน. ผ่าน ThaiWater · เรียงจากต้นน้ำลงมา กทม.',
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
     upDam: (pct: number, inflow: number, release: number) => `ความจุ ${pct.toFixed(0)}% · ไหลเข้า ${inflow.toFixed(1)} · ระบาย ${release.toFixed(1)} ล้าน ลบ.ม./วัน`,
     upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upOthers: (n: number) => `เขื่อนอื่นทั่วประเทศ (${n})`, upNone: 'ยังไม่มีข้อมูลเขื่อน',
@@ -145,6 +147,8 @@ const T = {
     staleBanner: 'Unavailable right now (unreachable, and the saved snapshot is over 6 h old so it is hidden):',
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
+    riverTitle: '🌊 Chao Phraya River (upstream → Bangkok)', riverFlow: 'Flow', riverSamsen: 'Samsen', riverOver: (m: string) => `${m} m above bank`, riverBelow: (m: string) => `${m} m below bank`,
+    riverNote: 'Water level (m MSL) against each gauge\'s bank, not the flood-wall height · RID / HII via ThaiWater · listed from upstream down to Bangkok',
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
     upDam: (pct: number, inflow: number, release: number) => `${pct.toFixed(0)}% full · in ${inflow.toFixed(1)} · out ${release.toFixed(1)} million m³/day`,
     upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upOthers: (n: number) => `Other dams nationwide (${n})`, upNone: 'No dam data yet',
@@ -800,6 +804,23 @@ function render() {
       <div class="s">${canalStatus(c)}${c.bank != null ? ` · ${L.toBank} ${(c.bank - c.wl).toFixed(2)} m` : ''} · ${hhmm(c.updated)}${canalTrend(c)?.d1h != null ? ` · ${trendTxt(c).split(' · ')[0]}` : ''}${canalStuckH(c) ? ' · ⚠️' : ''}</div></button>`);
   const canalFresh = canals.items.filter((c) => c.note !== 'stale').length;
   html += section('canals', `${L.canals} (${canals.items.length}) · ${L.canalFresh(canalFresh, canals.items.length)}`, `<div class="empty" style="margin:0 0 6px">${L.greenNote}</div>` + list(canalItems, 10, L.traffyMore));
+
+  // Chao Phraya main stem, upstream → Bangkok: the river that decides riverside flooding in Bangkok.
+  if (historyAt == null && upstream?.river.length) {
+    const rowHtml = (r: RiverRow) => {
+      const gap = r.wl != null && r.bank != null ? r.bank - r.wl : null;
+      const c = gap == null ? 'var(--accent)' : gap <= 0 ? LEVEL_COLORS[3] : gap < 0.3 ? LEVEL_COLORS[2] : gap < 0.5 ? LEVEL_COLORS[1] : LEVEL_COLORS[0];
+      const canal = canals.items.find((x) => x.nameTh === r.th); // Bangkok gauges also have trends from our history
+      const trend = canal ? trendTxt(canal) : '';
+      return `<button class="item" style="--c:${c}" data-top="${r.lng},${r.lat}">
+        <div class="t"><span>${esc(r.th)} (${esc(r.code)})</span><span>${r.wl != null ? `${r.wl.toFixed(2)} m` : ''}</span></div>
+        <div class="s">${[gap != null ? (gap <= 0 ? L.riverOver((-gap).toFixed(2)) : L.riverBelow(gap.toFixed(2))) : '', r.discharge != null ? `${L.riverFlow} ${r.discharge.toLocaleString()} ${L.upUnit}` : '', trend, esc(r.time.slice(11, 16))].filter(Boolean).join(' · ')}</div></button>`;
+    };
+    // Headline = Samsen (C.12), Bangkok's reference gauge; upstream stations can be over bank without Bangkok being so.
+    const ss = upstream.river.find((r) => r.code === 'C.12' && r.wl != null && r.bank != null), gap = ss ? ss.bank! - ss.wl! : null;
+    html += section('river', `${L.riverTitle}${gap != null ? ` · ${L.riverSamsen} ${gap <= 0 ? L.riverOver((-gap).toFixed(2)) : L.riverBelow(gap.toFixed(2))}` : ''}`,
+      upstream.river.map(rowHtml).join('') + `<div class="empty" style="margin:4px 0 8px">${L.riverNote}</div>`);
+  }
 
   if (historyAt == null && upstream && (upstream.dams.length || upstream.c13)) {
     const damColor = (p: number) => (p >= 100 ? LEVEL_COLORS[3] : p >= 80 ? LEVEL_COLORS[2] : LEVEL_COLORS[0]);
