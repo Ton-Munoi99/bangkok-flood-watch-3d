@@ -6,7 +6,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
-  BMA_FRESH_MS, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
+  BMA_FRESH_MS, TW_LIVE_PATHS, type TwLive, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
   emptyDay, emptyMeta, mergeDay, parseDams, parseNation, parseProvinces, parseRankings, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type NationPoints, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
@@ -84,18 +84,24 @@ export default async () => {
 
   const extras = Promise.allSettled([dams(), warnings(), nation()]);
 
+  // Copy of each live ThaiWater feed for the browsers (see TW_LIVE_PATHS): one fetch per run for everyone.
+  const live: TwLive['data'] = {};
+  const tw = (path: (typeof TW_LIVE_PATHS)[number]) => getJson(`${TW}/${path}`).then((d) => (live[path] = d));
+
   const results = await Promise.allSettled([
     // Only keep road readings from the last hour: ThaiWater's relay can stall and keep serving old values.
-    getJson(`${TW}/flood_road`).then((d) => addFloodRoad(meta, b, d.data, relaySince)),
-    getJson(`${TW}/waterlevel_load?province_code=10`).then((d) => addCanal(meta, b, d.waterlevel_data.data)),
-    getJson(`${TW}/rain_24h?province_code=10`).then((d) => addRain(meta, b, d.data)),
-    getJson(`${TW}/canal_waterlevel`).then((d) => addBmaCanals(meta, b, d.data)),
+    tw('flood_road').then((d) => addFloodRoad(meta, b, d.data, relaySince)),
+    tw('waterlevel_load?province_code=10').then((d) => addCanal(meta, b, d.waterlevel_data.data)),
+    tw('rain_24h?province_code=10').then((d) => addRain(meta, b, d.data)),
+    tw('canal_waterlevel').then((d) => addBmaCanals(meta, b, d.data)),
     getJson(`${TRAFFY}?limit=500`).then((d) => addReports(b, d.results)),
     // The feed also carries recent expired events, so this backfills itself.
     getJson(LONGDO_EVENTS).then((d) => parseLongdoEvents(d).forEach((e) => b.event(e, now))),
     getJson(LONGDO_TRAFFIC_INDEX).then((d) => Number.isFinite(d.index) && b.traffic(Number(d.time) * 1000, Number(d.index))),
+    tw('waterlevel_load?province_code=18'), tw('waterlevel_load?province_code=14'),
   ]);
-  const names = ['flood_road', 'waterlevel', 'rain', 'canal_waterlevel', 'traffy', 'longdo_events', 'traffic_index'];
+  if (Object.keys(live).length) await store.setJSON('twlive', { fetchedAt: new Date(now).toISOString(), data: live } satisfies TwLive);
+  const names = ['flood_road', 'waterlevel', 'rain', 'canal_waterlevel', 'traffy', 'longdo_events', 'traffic_index', 'wl_18', 'wl_14'];
   results.forEach((r, i) => r.status === 'rejected' && console.error(`source ${names[i]} failed:`, r.reason));
 
   await store.setJSON('meta', meta);

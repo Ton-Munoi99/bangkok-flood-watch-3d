@@ -4,7 +4,7 @@ import { emptyDay, mergeDay, slot, type DayFile } from '../../src/data/history.t
 
 export default async (_req: Request, context: { params: Record<string, string> }) => {
   const key = context.params.key ?? '';
-  if (!/^(meta|upstream|tmd|provinces|doh|nation|\d{4}-\d{2}-\d{2})$/.test(key)) return new Response('bad key', { status: 400 });
+  if (!/^(meta|upstream|tmd|provinces|doh|nation|twlive|\d{4}-\d{2}-\d{2})$/.test(key)) return new Response('bad key', { status: 400 });
 
   const store = getStore('history');
   let body: string | null;
@@ -18,7 +18,8 @@ export default async (_req: Request, context: { params: Record<string, string> }
 
   // Today/yesterday still receive new buckets; older days are final.
   const recent = !/^\d/.test(key) || key >= slot(Date.now() - 86400_000).day;
-  headers['netlify-cdn-cache-control'] = `public, durable, ${recent ? 's-maxage=300, stale-while-revalidate=600' : 's-maxage=86400'}`;
+  // twlive changes every 10 min and pages treat it as live, so keep the CDN copy short.
+  headers['netlify-cdn-cache-control'] = `public, durable, ${key === 'twlive' ? 's-maxage=60, stale-while-revalidate=120' : recent ? 's-maxage=300, stale-while-revalidate=600' : 's-maxage=86400'}`;
   return new Response(body, { headers });
 };
 

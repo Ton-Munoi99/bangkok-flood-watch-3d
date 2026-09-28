@@ -100,6 +100,11 @@ export class DayBuilder {
 
 // ---------- parsers for the raw public APIs (used by collector + backfill) ----------
 export const TW = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public';
+/** ThaiWater feeds the page needs live. ThaiWater rate-limits per referring website, so browsers don't call it:
+ *  the collector fetches these once per run and serves the copy at /api/history/twlive. */
+export const TW_LIVE_PATHS = ['flood_road', 'canal_waterlevel', 'waterlevel_load?province_code=10', 'rain_24h?province_code=10',
+  'waterlevel_load?province_code=18', 'waterlevel_load?province_code=14'] as const;
+export interface TwLive { fetchedAt: string; data: Partial<Record<(typeof TW_LIVE_PATHS)[number], unknown>> }
 export const TRAFFY = 'https://publicapi.traffy.in.th/share/teamchadchart/search';
 
 interface TwFloodRoad { floodroad_datetime: string; floodroad_value: number | null; station: { floodroad_name: { th: string }; floodroad_lat: number; floodroad_long: number; floodroad_oldcode: string } }

@@ -4,7 +4,7 @@
 // live and snapshot data go through the same parser.
 
 import {
-  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
+  LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, type TwLive, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
   parseC13, parseRiver, type RiverRow, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type TopRow, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
 export type { RiverRow, TopRow, NationPoints, DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
@@ -60,6 +60,17 @@ async function fetchOk(url: string, timeoutMs = 15_000) {
   return r;
 }
 const getJson = async (url: string) => (await fetchOk(url)).json();
+// ThaiWater limits requests per referring site, so every visitor calling it directly got the whole site
+// throttled (HTTP 429). Read the collector's copy (refreshed every 10 min); call ThaiWater only if that copy
+// is missing or older than 30 min (e.g. local dev without the functions).
+let twLiveP: Promise<TwLive | null> | null = null, twLiveAt = 0;
+// Raw ThaiWater JSON (typed by each parser), like getJson.
+async function tw(path: string): Promise<any> {
+  if (!twLiveP || Date.now() - twLiveAt > 60_000) { twLiveAt = Date.now(); twLiveP = getJson('/api/history/twlive').catch(() => null); }
+  const copy = await twLiveP;
+  const d = copy && Date.now() - Date.parse(copy.fetchedAt) < 30 * 60_000 ? (copy.data as Record<string, unknown>)[path] : undefined;
+  return d ?? getJson(`${TW_BASE}/${path}`);
+}
 // Third-party URLs end up in href/src attributes; never allow javascript: etc.
 const httpsOnly = (u: string | null) => (u && /^https:\/\//.test(u) ? u : '');
 
@@ -141,7 +152,7 @@ async function roadFromIngest(): Promise<{ fetchedAt: string; items: RoadFlood[]
 }
 
 async function roadFromThaiWater(since: number): Promise<RoadFlood[]> {
-  const rows = (await getJson(`${TW_BASE}/flood_road`)).data as {
+  const rows = (await tw('flood_road')).data as {
     floodroad_datetime: string; floodroad_value: number | null;
     station: { floodroad_name: { th: string }; floodroad_lat: number; floodroad_long: number; floodroad_oldcode: string };
   }[];
@@ -157,8 +168,7 @@ async function roadFromThaiWater(since: number): Promise<RoadFlood[]> {
     });
 }
 
-// ---------- ThaiWater (คลังข้อมูลน้ำแห่งชาติ, สสน.) — public API, CORS enabled ----------
-const TW = TW_BASE;
+// ---------- ThaiWater (คลังข้อมูลน้ำแห่งชาติ, สสน.) — read via tw() above (collector copy first) ----------
 
 interface TwStation {
   id: number;
@@ -199,8 +209,8 @@ export const fetchCanals = () =>
   withFallback(
     async () => {
       const [tele, bma] = await Promise.all([
-        getJson(`${TW}/waterlevel_load?province_code=10`).then(parseCanal),
-        getJson(`${TW}/canal_waterlevel`).then((d) => parseBmaCanals(d.data, Date.now())).catch(() => [] as Canal[]),
+        tw('waterlevel_load?province_code=10').then(parseCanal),
+        tw('canal_waterlevel').then((d) => parseBmaCanals(d.data, Date.now())).catch(() => [] as Canal[]),
       ]);
       return [...tele, ...bma];
     },
@@ -210,7 +220,7 @@ export const fetchCanals = () =>
 
 export const fetchRain = () =>
   withFallback(
-    async () => parseRain(await getJson(`${TW}/rain_24h?province_code=10`)),
+    async () => parseRain(await tw('rain_24h?province_code=10')),
     async () => parseRain((await import('./mock/thaiwater_rain.json')).default as never),
     (r) => r.updated,
   );
@@ -417,13 +427,13 @@ export interface UpstreamView { dams: Dam[]; c13: { discharge: number; time: str
 export async function fetchUpstream(): Promise<UpstreamView> {
   const [up, load, tmd, provinces, nation, ayutthaya, bangkok] = await Promise.all([
     getJson('/api/history/upstream').catch(() => null) as Promise<Upstream | null>,
-    getJson(`${TW_BASE}/waterlevel_load?province_code=18`).catch(() => null),
+    tw('waterlevel_load?province_code=18').catch(() => null),
     getJson('/api/history/tmd').catch(() => null) as Promise<TmdFeed | null>,
     getJson('/api/history/provinces').catch(() => null) as Promise<Provinces | null>,
     getJson('/api/history/nation').catch(() => null) as Promise<NationPoints | null>,
     // Chao Phraya main stem (small per-province feeds, fetched live like C.13)
-    getJson(`${TW_BASE}/waterlevel_load?province_code=14`).catch(() => null),
-    getJson(`${TW_BASE}/waterlevel_load?province_code=10`).catch(() => null),
+    tw('waterlevel_load?province_code=14').catch(() => null),
+    tw('waterlevel_load?province_code=10').catch(() => null),
   ]);
   // The collector refreshes these every 30 min; if it has stopped, show no colours (grey) rather than hours-old ones unlabelled.
   const fresh = <T extends { fetchedAt: string }>(x: T | null) => (x && Date.now() - Date.parse(x.fetchedAt) < 3 * 3600_000 ? x : null);
