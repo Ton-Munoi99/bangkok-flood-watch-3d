@@ -47,7 +47,8 @@ const T = {
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
     nearPh: 'วางลิงก์ Google Maps หรือพิกัด เช่น 13.75, 100.55', nearBad: 'อ่านพิกัดไม่ได้ · ลิงก์สั้น (maps.app.goo.gl) ให้เปิดก่อนแล้วคัดลอก URL เต็มจากแถบที่อยู่ หรือพิมพ์พิกัด',
     nearGpsFail: 'ขอตำแหน่งไม่ได้ (ไม่ได้อนุญาตหรือเครื่องไม่รองรับ) · วางลิงก์หรือพิกัดแทนได้', nearWait: 'กำลังหาตำแหน่ง…',
-    nearNote: 'ตำแหน่งใช้คำนวณในเครื่องนี้เท่านั้น ไม่ถูกส่งหรือบันทึกที่ใด', nearHere: 'รอบจุดนี้ 2 กม.', nearOutside: 'อยู่นอก กทม. · ข้อมูลในแผนที่นี้ครอบคลุมเฉพาะ กทม.',
+    nearNote: 'ตำแหน่งใช้คำนวณในเครื่องนี้เท่านั้น ไม่ถูกส่งหรือบันทึกที่ใด (ยกเว้นถ้ากด "ดูพยากรณ์ฝนจุดนี้" ตำแหน่งโดยประมาณจะถูกส่งไปเปิดที่ Windy)',
+    nearFc: '🌧️ ดูพยากรณ์ฝนจุดนี้ (Windy) ↗', nearFcNote: 'เป็นการพยากรณ์ ไม่ใช่ค่าวัดจริง', nearHere: 'รอบจุดนี้ 2 กม.', nearOutside: 'อยู่นอก กทม. · ข้อมูลในแผนที่นี้ครอบคลุมเฉพาะ กทม.',
     nearRoad: 'ถนนน้ำท่วม', nearCanal: 'คลองล้น/ใกล้ล้นตลิ่ง', nearRain: 'ฝนสถานีใกล้สุด', nearEvents: 'เหตุการณ์จราจร/น้ำท่วม', nearReports: 'แจ้งน้ำท่วม Traffy',
     nearNone: '✅ ไม่พบรายงานน้ำท่วมในรัศมี 2 กม.', nearPts: (n: number, max: number) => `${n} จุด · สูงสุด ${max} ซม.`,
     linksBtn: '🔗 ลิงก์', linksTitle: '🔗 ลิงก์ติดตามสถานการณ์',
@@ -62,7 +63,8 @@ const T = {
       ['กรมทางหลวง (HDMS)', 'https://hdms.doh.go.th/dashboard', 'ทางหลวงที่ได้รับผลกระทบ ผ่านได้/ผ่านไม่ได้ ทั่วประเทศ'],
       ['CCTV จราจร กทม.', 'https://cpudapp.bangkok.go.th/bmatraffic', 'กล้องจราจรของกรุงเทพมหานคร'],
       ['แผนผังคลอง กทม.', 'https://weather.bangkok.go.th/KlongMap', 'ระดับน้ำและทิศทางการไหลของคลอง (เปิดได้จากในประเทศไทย)'],
-      ['GISTDA Life Dee', 'https://lifedee.gistda.or.th/map/flood', 'คาดการณ์พื้นที่เสี่ยงน้ำท่วมล่วงหน้า 1–3 วัน (เป็นการคาดการณ์ ไม่ใช่ค่าวัดจริง)']] as [string, string, string][],
+      ['GISTDA Life Dee', 'https://lifedee.gistda.or.th/map/flood', 'คาดการณ์พื้นที่เสี่ยงน้ำท่วมล่วงหน้า 1–3 วัน (เป็นการคาดการณ์ ไม่ใช่ค่าวัดจริง)'],
+      ['Google DeepMind WeatherLab', 'https://deepmind.google.com/science/weatherlab', 'พยากรณ์อากาศรายจุดจากโมเดล AI WeatherNext (ทดลอง ต้องล็อกอิน Google · ไม่ใช่ประกาศทางการ)']] as [string, string, string][],
     hotlineBtn: '📞 สายด่วน', rainBtn: '🌧️ พยากรณ์ฝน', hotlineTitle: '📞 สายด่วนขอความช่วยเหลือ',
     hotlineNote: 'บนมือถือ กดที่เบอร์เพื่อโทรได้ทันที', lineDdpm: 'ปภ. ทาง LINE: @1784DDPM',
     careTitle: '🧓 บ้านที่มีผู้สูงอายุ ผู้ป่วยติดเตียง หรือคนเดินเองไม่ได้',
@@ -152,7 +154,8 @@ const T = {
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
     nearPh: 'Paste a Google Maps link or coordinates, e.g. 13.75, 100.55', nearBad: 'Couldn\'t read coordinates · for short links (maps.app.goo.gl) open them first and copy the full URL, or type coordinates',
     nearGpsFail: 'Location unavailable (permission denied or unsupported) · paste a link or coordinates instead', nearWait: 'Finding you…',
-    nearNote: 'Your location is only used on this device; it is never sent or stored.', nearHere: 'Within 2 km of here', nearOutside: 'Outside Bangkok · this map only covers Bangkok',
+    nearNote: 'Your location is only used on this device; it is never sent or stored (unless you tap "Rain forecast here", which opens Windy at the approximate spot).',
+    nearFc: '🌧️ Rain forecast here (Windy) ↗', nearFcNote: 'a forecast, not a measurement', nearHere: 'Within 2 km of here', nearOutside: 'Outside Bangkok · this map only covers Bangkok',
     nearRoad: 'Flooded roads', nearCanal: 'Canals over/near bank', nearRain: 'Nearest rain gauge', nearEvents: 'Traffic/flood incidents', nearReports: 'Traffy flood reports',
     nearNone: '✅ No flooding reported within 2 km', nearPts: (n: number, max: number) => `${n} pts · max ${max} cm`,
     linksBtn: '🔗 Links', linksTitle: '🔗 Follow the situation',
@@ -167,7 +170,8 @@ const T = {
       ['Dept. of Highways (HDMS)', 'https://hdms.doh.go.th/dashboard', 'Affected highways nationwide, passable or not'],
       ['BMA traffic CCTV', 'https://cpudapp.bangkok.go.th/bmatraffic', 'Bangkok traffic cameras'],
       ['BMA canal map', 'https://weather.bangkok.go.th/KlongMap', 'Canal levels and flow directions (reachable from Thailand)'],
-      ['GISTDA Life Dee', 'https://lifedee.gistda.or.th/map/flood', '1–3 day flood-risk forecast (a forecast, not a measurement)']] as [string, string, string][],
+      ['GISTDA Life Dee', 'https://lifedee.gistda.or.th/map/flood', '1–3 day flood-risk forecast (a forecast, not a measurement)'],
+      ['Google DeepMind WeatherLab', 'https://deepmind.google.com/science/weatherlab', 'Point forecasts from the WeatherNext AI model (experimental, Google sign-in · not an official warning)']] as [string, string, string][],
     hotlineBtn: '📞 Hotlines', rainBtn: '🌧️ Rain forecast', hotlineTitle: '📞 Emergency hotlines (Thailand)',
     hotlineNote: 'On a phone, tap a number to call.', lineDdpm: 'DDPM on LINE: @1784DDPM',
     careTitle: '🧓 Homes with elderly, bedridden or mobility-impaired people',
@@ -1131,7 +1135,9 @@ function showNear(p: { lng: number; lat: number }) {
     (canalHits.length ? row(L.nearCanal, canalHits.map((c) => esc(name(c))).slice(0, 3).join(', ')) : '') +
     (hws.length ? row(L.nearDoh, String(hws.length)) : '') + (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
     (any ? '' : `<div style="margin:4px 0">${L.nearNone}</div>`) +
-    (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : ''), true);
+    (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : '') +
+    // Point forecast for this spot. Only leaves the device if tapped; rounded to ~100 m.
+    ((lat: string, lng: string) => `<div class="r"><a href="https://www.windy.com/${lat}/${lng}?rain,${lat},${lng},12" target="_blank" rel="noopener noreferrer">${L.nearFc}</a></div><div class="empty">${L.nearFcNote}</div>`)(p.lat.toFixed(3), p.lng.toFixed(3)), true);
 }
 /** Native share sheet on phones; clipboard elsewhere (button text confirms). */
 async function shareLink(url: string, btn: HTMLElement) {
