@@ -471,7 +471,7 @@ map.on('load', async () => {
     paint: {
       // ~280 BMA canal points: smaller rings than the few ThaiWater river/canal stations
       // (MapLibre only allows "zoom" at the top of an interpolate, so the case goes inside each stop)
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['get', 'small'], 3.5, 8], 14, ['case', ['get', 'small'], 6, 8]],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['get', 'small'], 4.5, 8], 14, ['case', ['get', 'small'], 7, 9]],
       'circle-color': '#0b1322', 'circle-stroke-width': ['case', ['get', 'small'], 2.5, 4],
       'circle-stroke-color': ['match', ['get', 'situation'], 5, SITUATION_COLORS[5], 4, SITUATION_COLORS[4], 3, SITUATION_COLORS[3], SITUATION_COLORS[0]],
     },
@@ -502,7 +502,7 @@ map.on('load', async () => {
     id: 'road', type: 'circle', source: 'road',
     layout: { 'circle-sort-key': ['get', 'cm'] },
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['get', 'cm'], 0, 3, 10, 7, 30, 11, 60, 15],
+      'circle-radius': ['interpolate', ['linear'], ['get', 'cm'], 0, 4.5, 10, 8, 30, 11, 60, 15],
       'circle-color': ['match', ['get', 'level'], 1, LEVEL_COLORS[1], 2, LEVEL_COLORS[2], 3, LEVEL_COLORS[3], '#56627a'],
       'circle-stroke-width': ['case', ['>', ['get', 'cm'], 0], 1.5, 0.5], 'circle-stroke-color': '#fff',
     },
@@ -521,7 +521,7 @@ map.on('load', async () => {
   // Top-most clickable feature near a point, with some slack so small markers are easy to hit
   // (a fingertip needs more than a mouse pointer).
   const pick = (pt: maplibregl.Point) => {
-    const k = matchMedia('(pointer: coarse)').matches ? 14 : 6;
+    const k = matchMedia('(pointer: coarse)').matches ? 18 : 10;
     const box: [maplibregl.PointLike, maplibregl.PointLike] = [[pt.x - k, pt.y - k], [pt.x + k, pt.y + k]];
     // Province/amphoe layers only exist after 🗺️ is first ticked; querying a missing layer throws, which
     // silently broke every tap for anyone who never ticked it. Only ask for layers that exist and are shown.
