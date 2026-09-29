@@ -46,7 +46,7 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ ต่างจังหวัด · ล้นตลิ่ง ${o}/${n} สถานี (${p} จังหวัด)`, provRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น ${nr} · จาก ${n} สถานี`,
     provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
     tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
-    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => `พบ ${n} รายการ`, searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)',
+    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)',
     sk: { district: 'เขต', road: 'น้ำท่วมถนน', canal: 'คลอง/แม่น้ำ', rain: 'ฝน', event: 'เหตุการณ์', doh: 'ทางหลวง', report: 'Traffy', cam: 'กล้อง' } as Record<string, string>,
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
     nearPh: 'วางลิงก์ Google Maps หรือพิกัด เช่น 13.75, 100.55', nearBad: 'อ่านพิกัดไม่ได้ · ลิงก์สั้น (maps.app.goo.gl) ให้เปิดก่อนแล้วคัดลอก URL เต็มจากแถบที่อยู่ หรือพิมพ์พิกัด',
@@ -157,7 +157,7 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ Other provinces · over bank ${o}/${n} stations (${p} provinces)`, provRow: (o: number, nr: number, n: number) => `over bank ${o} · near ${nr} · of ${n} stations`,
     provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
     tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
-    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => `${n} found`, searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)',
+    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)',
     sk: { district: 'District', road: 'Road flood', canal: 'Canal/river', rain: 'Rain', event: 'Incident', doh: 'Highway', report: 'Traffy', cam: 'Camera' } as Record<string, string>,
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
     nearPh: 'Paste a Google Maps link or coordinates, e.g. 13.75, 100.55', nearBad: 'Couldn\'t read coordinates · for short links (maps.app.goo.gl) open them first and copy the full URL, or type coordinates',
@@ -1124,7 +1124,7 @@ function wireSearch() {
     if (near) hits = searchAll(loose);
     box.hidden = false;
     box.innerHTML = `<div class="empty" style="margin:0 0 4px">${hits.length ? (near ? L.searchNear(esc(loose), hits.length) : L.searchFound(hits.length)) : L.searchNone}</div>` +
-      hits.slice(0, 40).map((h, i) => `<button class="item" style="--c:${h.c}" data-hit="${i}"><div class="t"><span>${esc(h.title)}</span><span>${esc(L.sk[h.kind] ?? '')}</span></div><div class="s">${esc(h.sub)}</div></button>`).join('');
+      hits.slice(0, 100).map((h, i) => `<button class="item" style="--c:${h.c}" data-hit="${i}"><div class="t"><span>${esc(h.title)}</span><span>${esc(L.sk[h.kind] ?? '')}</span></div><div class="s">${esc(h.sub)}</div></button>`).join('');
   };
   const pickHit = (h?: Hit) => { if (!h) return; h.go(); input.blur(); $('sidebar').classList.remove('open'); };
   input.addEventListener('input', draw);
