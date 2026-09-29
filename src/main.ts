@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import provincesGeoUrl from '../data/th_provinces.geojson?url';
 import amphoeGeoUrl from '../data/th_amphoe.geojson?url';
-import { amphoeLevel, bboxOf, inPolys, provinceLevel, type Ring as PolyRing } from './data/history';
+import { amphoeLevel, bboxOf, inPolys, matchesSearch, provinceLevel, type Ring as PolyRing } from './data/history';
 import simData from '../data/bkk_data.json';
 import {
   fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, type DohFlood, type DwrCamera, type Trend,
@@ -46,6 +46,8 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ ต่างจังหวัด · ล้นตลิ่ง ${o}/${n} สถานี (${p} จังหวัด)`, provRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น ${nr} · จาก ${n} สถานี`,
     provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
     tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
+    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => `พบ ${n} รายการ`, searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)',
+    sk: { district: 'เขต', road: 'น้ำท่วมถนน', canal: 'คลอง/แม่น้ำ', rain: 'ฝน', event: 'เหตุการณ์', doh: 'ทางหลวง', report: 'Traffy', cam: 'กล้อง' } as Record<string, string>,
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
     nearPh: 'วางลิงก์ Google Maps หรือพิกัด เช่น 13.75, 100.55', nearBad: 'อ่านพิกัดไม่ได้ · ลิงก์สั้น (maps.app.goo.gl) ให้เปิดก่อนแล้วคัดลอก URL เต็มจากแถบที่อยู่ หรือพิมพ์พิกัด',
     nearGpsFail: 'ขอตำแหน่งไม่ได้ (ไม่ได้อนุญาตหรือเครื่องไม่รองรับ) · วางลิงก์หรือพิกัดแทนได้', nearWait: 'กำลังหาตำแหน่ง…',
@@ -155,6 +157,8 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ Other provinces · over bank ${o}/${n} stations (${p} provinces)`, provRow: (o: number, nr: number, n: number) => `over bank ${o} · near ${nr} · of ${n} stations`,
     provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
     tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
+    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => `${n} found`, searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)',
+    sk: { district: 'District', road: 'Road flood', canal: 'Canal/river', rain: 'Rain', event: 'Incident', doh: 'Highway', report: 'Traffy', cam: 'Camera' } as Record<string, string>,
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
     nearPh: 'Paste a Google Maps link or coordinates, e.g. 13.75, 100.55', nearBad: 'Couldn\'t read coordinates · for short links (maps.app.goo.gl) open them first and copy the full URL, or type coordinates',
     nearGpsFail: 'Location unavailable (permission denied or unsupported) · paste a link or coordinates instead', nearWait: 'Finding you…',
@@ -1090,6 +1094,46 @@ function hoverHtml(layer: string, i: number, id: unknown) {
   }
   return '';
 }
+// ---------- 🔍 panel search: everything currently loaded in the panel, not just districts ----------
+type Hit = { kind: string; title: string; sub: string; c: string; go: () => void };
+function searchAll(q: string): Hit[] {
+  const L = t(), hits: Hit[] = [];
+  const fly = (x: { lng: number; lat: number }) => map.flyTo({ center: [x.lng, x.lat], zoom: Math.max(map.getZoom(), 15), duration: 1200 });
+  const add = (text: string, h: Hit) => { if (matchesSearch(text, q)) hits.push(h); };
+  for (const d of districts) add(`เขต${d.th} ${d.en}`, { kind: 'district', title: `${L.district}${dName(d)}`, sub: d.level < 0 ? L.noSensor : lvlName(d.level), c: d.level < 0 ? NO_DATA_COLOR : LEVEL_COLORS[d.level], go: () => showDistrict(d) });
+  for (const r of [...road.items].sort((a, b) => b.cm - a.cm)) add(`${r.nameTh} ${r.nameEn}`, { kind: 'road', title: name(r), sub: `${r.cm} cm${r.cm > 0 ? ` · ${lvlName(r.level)}` : ''}`, c: r.cm > 0 ? LEVEL_COLORS[r.level] : NO_DATA_COLOR, go: () => showRoad(r, true) });
+  for (const c of canals.items) add(`${c.nameTh} ${c.nameEn}`, { kind: 'canal', title: name(c), sub: `${c.wl.toFixed(2)} m · ${canalStatus(c)}`, c: SITUATION_COLORS[c.situation], go: () => showCanal(c, true) });
+  for (const e of events.items) add(`${e.title} ${e.titleEn} ${e.text}`, { kind: 'event', title: lang === 'th' ? e.title : e.titleEn || e.title, sub: bkkTime(e.start), c: e.impassable ? LEVEL_COLORS[3] : LEVEL_COLORS[2], go: () => showEvent(e, true) });
+  for (const d of dohLive()) add(`ทางหลวง ${d.road} ${Number(d.road)} ${d.section} ${d.province} ${d.amphoe}`, { kind: 'doh', title: `${L.dohRoad} ${Number(d.road) || d.road} ${d.section}`, sub: `${d.province} · ${d.impassable ? L.dohNo : L.dohYes}`, c: d.impassable ? LEVEL_COLORS[3] : LEVEL_COLORS[2], go: () => showDoh(d, true) });
+  for (const r of reports.items) add(`${r.text} ${r.address}`, { kind: 'report', title: r.text.slice(0, 60) || 'Traffy Fondue', sub: bkkTime(r.time), c: '#c084fc', go: () => showReport(r, true) });
+  for (const r of rain.items) add(`${r.nameTh} ${r.nameEn}`, { kind: 'rain', title: name(r), sub: `${r.mm} mm / 24h`, c: '#4292c6', go: () => showRain(r, true) });
+  for (const c of cameras) add(c.title, { kind: 'cam', title: c.title, sub: 'Longdo', c: 'var(--accent)', go: () => { fly(c); showCamera(c); } });
+  for (const c of dwrShown()) add(`${c.th} ${c.en} ${c.province}`, { kind: 'cam', title: lang === 'th' ? c.th : c.en || c.th, sub: L.dwrAgency, c: '#2dd4bf', go: () => { fly(c); showDwrCamera(c); } });
+  return hits;
+}
+function wireSearch() {
+  const input = $<HTMLInputElement>('sideSearch'), box = $('sideResults');
+  let hits: Hit[] = [];
+  const draw = () => {
+    const q = input.value.trim(), L = t();
+    if (q.length < 2) { box.hidden = true; box.innerHTML = ''; hits = []; return; }
+    hits = searchAll(q);
+    // People type "ซอยสุทธิสาร" for a sensor named "ถ.สุทธิสารวินิจฉัย": if nothing matches, retry without the soi/road/canal word.
+    const loose = q.replace(/(^|\s)(ซอย|ถนน|คลอง|ซ\.|ถ\.|ค\.)\s*/g, '$1').trim();
+    const near = !hits.length && loose.length >= 2 && loose !== q;
+    if (near) hits = searchAll(loose);
+    box.hidden = false;
+    box.innerHTML = `<div class="empty" style="margin:0 0 4px">${hits.length ? (near ? L.searchNear(esc(loose), hits.length) : L.searchFound(hits.length)) : L.searchNone}</div>` +
+      hits.slice(0, 40).map((h, i) => `<button class="item" style="--c:${h.c}" data-hit="${i}"><div class="t"><span>${esc(h.title)}</span><span>${esc(L.sk[h.kind] ?? '')}</span></div><div class="s">${esc(h.sub)}</div></button>`).join('');
+  };
+  const pickHit = (h?: Hit) => { if (!h) return; h.go(); input.blur(); $('sidebar').classList.remove('open'); };
+  input.addEventListener('input', draw);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); draw(); pickHit(hits[0]); }
+    if (e.key === 'Escape') { input.value = ''; draw(); }
+  });
+  box.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('[data-hit]'); if (b) pickHit(hits[+b.dataset.hit!]); });
+}
 function showDoh(d: DohFlood, fly = false) {
   const L = t();
   open([d.lng, d.lat], `<b>🛣️ ${L.dohRoad} ${esc(Number(d.road) || d.road)} ${esc(d.section)}</b>` +
@@ -1362,6 +1406,7 @@ function applyLang() {
   $('langEN').classList.toggle('active', lang === 'en');
   document.querySelectorAll<HTMLElement>('[data-i]').forEach((n) => (n.textContent = L[n.dataset.i as keyof typeof L] as string));
   $<HTMLInputElement>('search').placeholder = L.search;
+  $<HTMLInputElement>('sideSearch').placeholder = L.sideSearchPh;
   $('linksList').innerHTML = L.links.map(([n, u, d]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a><small>${esc(d)}</small></li>`).join('');
   $('hotlineList').innerHTML = L.hotlines.map(([n, who]) => `<li><span>${esc(who)}</span><a href="tel:${n.replace(/-/g, '')}">${n}</a></li>`).join('');
   $('trafficBtn').title = L.trafficTip;
@@ -1434,5 +1479,6 @@ function wireDialogs() {
 }
 
 wireDialogs();
+wireSearch();
 // Fill static UI text right away; the map/data can take several seconds.
 applyLang();

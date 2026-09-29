@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, matchesSearch, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -195,3 +195,12 @@ console.log('province level ok');
   assert.deepStrictEqual(r.map((x) => [x.code, x.wl, x.bank, x.discharge]), [['C.35', 4.75, null, 1272], ['C.12', 2.24, 2.26, null]]);
   console.log('river ok');
 }
+
+// Panel search: abbreviations folded both ways, all words required.
+assert.ok(matchesSearch('ซ.สุทธิสาร', 'ซอยสุทธิสาร'));
+assert.ok(matchesSearch('ถ.ลาดพร้าว (ซ.110)', 'ถนน ลาดพร้าว'));
+assert.ok(matchesSearch('คลองลาดพร้าว วัดบางบัว', 'ค.ลาดพร้าว'));
+assert.ok(matchesSearch('Soi Ari 2', 'ari'));
+assert.ok(!matchesSearch('ถ.ลาดพร้าว', 'ลาดพร้าว รามอินทรา'));
+assert.ok(!matchesSearch('อะไรก็ได้', '   '));
+console.log('search ok');

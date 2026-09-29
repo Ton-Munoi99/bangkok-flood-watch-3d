@@ -113,6 +113,10 @@ input[type=checkbox] { accent-color: var(--accent); }
   .sim { min-width: 0; }
   .layers:not([open]) { padding: 8px 10px; }
 }
+.side-search { position: relative; margin: 6px 0 8px; }
+.side-search input { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--panel-border); background: rgba(255,255,255,.05); color: var(--text); font: inherit; }
+.side-results { margin-top: 6px; max-height: 45vh; overflow-y: auto; }
+.side-results .item { margin-bottom: 4px; }
 .sidebar details summary { cursor: pointer; margin-bottom: 6px; }
 .timebar { display: flex; align-items: center; gap: 8px; padding: 5px 8px; align-self: flex-start; font-size: 12px; color: var(--text-muted); }
 .timebar input { background: transparent; border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 6px; color-scheme: dark; }

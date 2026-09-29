@@ -464,3 +464,17 @@ export function parseRankings(
   });
   return { rain: top(rain), water: top([...tele, ...canal]) };
 }
+
+// ---------- panel search: loose Thai/English matching of place names ----------
+/** Lower-case, drop spaces/dots/brackets and fold common Thai abbreviations, so "ซอย สุทธิสาร" finds "ซ.สุทธิสาร"
+ *  and "ถนนลาดพร้าว" finds "ถ.ลาดพร้าว". */
+export function normSearch(s: string) {
+  return s.toLowerCase()
+    .replace(/ซอย/g, 'ซ.').replace(/ถนน/g, 'ถ.').replace(/คลอง/g, 'ค.').replace(/แยก/g, 'ย.').replace(/สะพาน/g, 'สพ.')
+    .replace(/[\s.()\-,/]+/g, '');
+}
+/** Every word of the query (split on spaces) must appear in the text. */
+export function matchesSearch(text: string, query: string) {
+  const t = normSearch(text), words = query.trim().split(/\s+/).map(normSearch).filter(Boolean);
+  return words.length > 0 && words.every((w) => t.includes(w));
+}
