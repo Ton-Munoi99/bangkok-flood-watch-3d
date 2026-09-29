@@ -930,6 +930,8 @@ function cameraIcon(lens = '#38bdf8') {
   g.beginPath(); g.arc(12, 14.5, 4, 0, Math.PI * 2); g.fillStyle = lens; g.fill();
   return g.getImageData(0, 0, 28, 28);
 }
+/** A phone held sideways: little height, so the layout switches to compact panels (see style.css). */
+const shortLandscape = () => matchMedia('(max-height: 520px) and (orientation: landscape)').matches;
 /** Metres between two points (equirectangular — plenty accurate within a city). */
 const metres = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) => {
   const k = Math.PI / 180, x = (b.lng - a.lng) * k * Math.cos(((a.lat + b.lat) / 2) * k), y = (b.lat - a.lat) * k;
@@ -1056,7 +1058,7 @@ function setNation(on: boolean, move = true) {
   popup.remove();
   $('sidebar').classList.remove('open'); // on phones the panel covers the map; show the zoom-out/in that just happened
   // Phones: the stats/search panels cover the top ~260 px and the legend the bottom, so keep the country clear of them.
-  const pad = innerWidth < 820 ? { top: 260, bottom: 130, left: 10, right: 10 } : { top: 30, bottom: 30, left: 30, right: 360 };
+  const pad = shortLandscape() ? { top: 100, bottom: 30, left: 10, right: 70 } : innerWidth < 820 ? { top: 180, bottom: 130, left: 10, right: 10 } : { top: 30, bottom: 30, left: 30, right: 360 };
   if (on) map.fitBounds([[97.3, 5.6], [105.7, 20.5]], { padding: pad, pitch: 0, duration: 1500 });
   else map.flyTo({ ...HOME, duration: 1500 });
 }
@@ -1173,7 +1175,8 @@ function showCamera(c: Camera) {
 const row = (k: string, v: string) => `<div class="r"><span>${k}</span><span>${v}</span></div>`;
 function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = false) {
   // Land the point below the stats panel (and left of the sidebar on desktop) so its popup isn't covered.
-  const offset: [number, number] = innerWidth > 820 ? [-170, 130] : [0, 140];
+  // Land the point where the popup has room: right-hand list on desktop, low on a phone, below the compact top rows on a phone on its side.
+  const offset: [number, number] = shortLandscape() ? [0, 55] : innerWidth > 820 ? [-170, 130] : [0, 140];
   if (fly) map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15), duration: 1200, offset });
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   popup.setLngLat(lngLat).setHTML(`<div class="pop">${html}</div>`).addTo(map);
@@ -1369,6 +1372,9 @@ function wireControls() {
     refresh();
   });
   $('sideToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+  // Mirror the panel state on <body> so CSS can move the buttons that would sit under an open drawer.
+  const side = $('sidebar');
+  new MutationObserver(() => document.body.classList.toggle('side-open', side.classList.contains('open'))).observe(side, { attributes: true, attributeFilter: ['class'] });
   $('sideBody').addEventListener('toggle', (e) => {
     const d = e.target as HTMLDetailsElement;
     if (!d.classList.contains('sec')) return;
