@@ -50,7 +50,7 @@ const T = {
     provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
     tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
     chart24: '24 ชม.', chart7: '7 วัน', chartLoading: 'กำลังโหลดข้อมูล 7 วัน…', chartTitle: (r: string) => `ระดับย้อนหลัง ${r}`, chartNote: 'จากข้อมูลที่เราเก็บทุก 10 นาที · เส้นประแดง = ตลิ่ง',
-    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)',
+    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)', placeBtn: '🌐 ค้นหาชื่อสถานที่/ซอยบนแผนที่ (OpenStreetMap)', placeBusy: 'กำลังค้นหา…', placeNone: 'OpenStreetMap ไม่พบสถานที่นี้ใน กทม.', placeErr: 'ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง', placeNote: 'ส่งคำค้นไปที่ nominatim.openstreetmap.org เฉพาะเมื่อกดปุ่มนี้ · ตำแหน่งจาก OpenStreetMap © ผู้ร่วมพัฒนา (ODbL) · เป็นเพียงตำแหน่ง ไม่ใช่ข้อมูลน้ำท่วม',
     sk: { district: 'เขต', road: 'น้ำท่วมถนน', canal: 'คลอง/แม่น้ำ', rain: 'ฝน', event: 'เหตุการณ์', doh: 'ทางหลวง', report: 'Traffy', cam: 'กล้อง' } as Record<string, string>,
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
     nearPh: 'วางลิงก์ Google Maps หรือพิกัด เช่น 13.75, 100.55', nearBad: 'อ่านพิกัดไม่ได้ · ลิงก์สั้น (maps.app.goo.gl) ให้เปิดก่อนแล้วคัดลอก URL เต็มจากแถบที่อยู่ หรือพิมพ์พิกัด',
@@ -61,6 +61,7 @@ const T = {
     nearNone: '✅ ไม่พบรายงานน้ำท่วมในรัศมี 2 กม.', nearPts: (n: number, max: number) => `${n} จุด · สูงสุด ${max} ซม.`,
     linksBtn: '🔗 ลิงก์', linksTitle: '🔗 ลิงก์ติดตามสถานการณ์',
     links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', 'พยากรณ์ระดับน้ำในแม่น้ำ ล่วงหน้า 7 วัน'],
+      ['BKK FloodWatch', 'https://flood.autobahn.bot', 'เว็บอื่นของคนไทย มีพยากรณ์ระดับน้ำ (โอเพนซอร์ส)'],
       ['ThaiWater (สสน.)', 'https://www.thaiwater.net', 'ระดับน้ำ ฝน เรดาร์ และรายงานสถานการณ์น้ำทั่วประเทศ'],
       ['iTIC Live', 'https://live.iticfoundation.org/', 'ถนนน้ำท่วม เหตุการณ์ และกล้อง CCTV ทั่วกรุงเทพฯ'],
       ['เว็บระดับน้ำท่วมถนน กทม.', 'https://weather.bangkok.go.th/flood/', 'สำนักการระบายน้ำ (เปิดได้จากในประเทศไทย)'],
@@ -163,7 +164,7 @@ const T = {
     provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
     tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
     chart24: '24 h', chart7: '7 days', chartLoading: 'Loading 7 days…', chartTitle: (r: string) => `History, last ${r}`, chartNote: 'From readings we record every 10 min · red dashes = bank',
-    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)',
+    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)', placeBtn: '🌐 Find a place or soi on the map (OpenStreetMap)', placeBusy: 'Searching…', placeNone: 'OpenStreetMap found nothing in Bangkok for this.', placeErr: 'Search failed, please retry.', placeNote: 'Your query goes to nominatim.openstreetmap.org only when you press this button · positions © OpenStreetMap contributors (ODbL) · a location only, not flood data',
     sk: { district: 'District', road: 'Road flood', canal: 'Canal/river', rain: 'Rain', event: 'Incident', doh: 'Highway', report: 'Traffy', cam: 'Camera' } as Record<string, string>,
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
     nearPh: 'Paste a Google Maps link or coordinates, e.g. 13.75, 100.55', nearBad: 'Couldn\'t read coordinates · for short links (maps.app.goo.gl) open them first and copy the full URL, or type coordinates',
@@ -174,6 +175,7 @@ const T = {
     nearNone: '✅ No flooding reported within 2 km', nearPts: (n: number, max: number) => `${n} pts · max ${max} cm`,
     linksBtn: '🔗 Links', linksTitle: '🔗 Follow the situation',
     links: [['Google Flood Hub', 'https://sites.research.google/floods/l/13.75/100.55/9', '7-day river flood forecasts'],
+      ['BKK FloodWatch', 'https://flood.autobahn.bot', 'Another Thai site with water-level forecasts (open source)'],
       ['ThaiWater (HII)', 'https://www.thaiwater.net', 'Water levels, rain, radar and national reports'],
       ['iTIC Live', 'https://live.iticfoundation.org/', 'Flooded roads, incidents and CCTV across Bangkok'],
       ['BMA road-flood sensors', 'https://weather.bangkok.go.th/flood/', 'Drainage & Sewerage Dept. (reachable from Thailand)'],
@@ -1154,7 +1156,8 @@ function wireSearch() {
     if (near) hits = searchAll(loose);
     box.hidden = false;
     box.innerHTML = `<div class="empty" style="margin:0 0 4px">${hits.length ? (near ? L.searchNear(esc(loose), hits.length) : L.searchFound(hits.length)) : L.searchNone}</div>` +
-      hits.slice(0, 100).map((h, i) => `<button class="item" style="--c:${h.c}" data-hit="${i}"><div class="t"><span>${esc(h.title)}</span><span>${esc(L.sk[h.kind] ?? '')}</span></div><div class="s">${esc(h.sub)}</div></button>`).join('');
+      hits.slice(0, 100).map((h, i) => `<button class="item" style="--c:${h.c}" data-hit="${i}"><div class="t"><span>${esc(h.title)}</span><span>${esc(L.sk[h.kind] ?? '')}</span></div><div class="s">${esc(h.sub)}</div></button>`).join('') +
+      (q.length >= 3 ? `<button class="btn" style="width:100%;margin-top:6px" data-place>${L.placeBtn}</button>` : '');
   };
   const pickHit = (h?: Hit) => { if (!h) return; h.go(); input.blur(); $('sidebar').classList.remove('open'); };
   input.addEventListener('input', draw);
@@ -1162,7 +1165,21 @@ function wireSearch() {
     if (e.key === 'Enter') { e.preventDefault(); draw(); pickHit(hits[0]); }
     if (e.key === 'Escape') { input.value = ''; draw(); }
   });
-  box.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('[data-hit]'); if (b) pickHit(hits[+b.dataset.hit!]); });
+  let places: { lng: number; lat: number; name: string }[] = [];
+  box.addEventListener('click', async (e) => {
+    const el = e.target as HTMLElement, b = el.closest<HTMLElement>('[data-hit]'), pl = el.closest<HTMLElement>('[data-pl]'), btn = el.closest<HTMLElement>('[data-place]');
+    if (b) return pickHit(hits[+b.dataset.hit!]);
+    if (pl) { const p = places[+pl.dataset.pl!]; if (p) { map.flyTo({ center: [p.lng, p.lat], zoom: 16, pitch: 0, duration: 1500 }); input.blur(); $('sidebar').classList.remove('open'); } return; }
+    if (!btn) return;
+    const L = t(); btn.textContent = L.placeBusy;
+    try {
+      // Nominatim: one request per click (its policy forbids autocomplete), limited to the Bangkok box.
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&accept-language=${lang}&countrycodes=th&viewbox=100.3,13.95,100.95,13.45&bounded=1&q=${encodeURIComponent(input.value.trim())}`, { signal: AbortSignal.timeout(10_000) });
+      if (!r.ok) throw new Error(String(r.status));
+      places = ((await r.json()) as { lon: string; lat: string; display_name: string }[]).map((x) => ({ lng: +x.lon, lat: +x.lat, name: x.display_name }));
+      btn.outerHTML = (places.length ? places.map((p, i) => `<button class="item" style="--c:#38bdf8" data-pl="${i}"><div class="t"><span>${esc(p.name.split(',').slice(0, 2).join(','))}</span><span>📍</span></div><div class="s">${esc(p.name)}</div></button>`).join('') : `<div class="empty">${L.placeNone}</div>`) + `<div class="empty">${L.placeNote}</div>`;
+    } catch { btn.textContent = L.placeErr; }
+  });
 }
 function showDoh(d: DohFlood, fly = false) {
   const L = t();
