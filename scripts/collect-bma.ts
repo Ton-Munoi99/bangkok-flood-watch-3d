@@ -5,7 +5,7 @@
 // Identifies itself honestly; reads only the public home page, once per run.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { DOH_DASHBOARD, TW, parseBmaHome, parseDoh, slot } from '../src/data/history.ts';
+import { DOH_DASHBOARD, TW, parseBmaFloodPage, parseBmaHome, parseDoh, slot } from '../src/data/history.ts';
 
 const UA = 'BangkokFloodWatch3D/0.1 (+https://github.com/Ton-Munoi99/bangkok-flood-watch-3d)';
 const INGEST_URL = process.env.INGEST_URL ?? 'https://bangkokflood.netlify.app/api/ingest';
@@ -54,20 +54,37 @@ async function placeUnmatched(names: string[]): Promise<Station[]> {
   return names.map((n) => byName.get(n)).filter((x): x is Station => !!x);
 }
 
-// BMA's firewall intermittently answers 403 even to normal traffic; a block usually clears within minutes.
-// Retry politely (same honest User-Agent, spaced out) rather than losing the whole 30-min slot.
-async function fetchHome() {
+// BMA's firewall intermittently answers 403 even to normal traffic. Two public pages carry the same 236 sensors:
+// the home page (1.7 MB, lists flooded stations only) and /flood/ (3 MB, every sensor with its own timestamp).
+// Try the home page first, then /flood/ (a different URL that the firewall has been answering); if both refuse,
+// retry politely (same honest User-Agent, spaced out) rather than losing the whole 30-min slot.
+type Page = { kind: 'home' | 'flood'; text: string };
+async function fetchPage(): Promise<Page> {
   const waits = [0, 60_000, 180_000];
   for (let i = 0; ; i++) {
     await new Promise((r) => setTimeout(r, waits[i]));
-    const res = await fetch('https://weather.bangkok.go.th/', { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(60_000) }).catch((e) => e as Error);
-    if (!(res instanceof Error) && res.ok) return res.text();
-    const why = res instanceof Error ? res.message : `HTTP ${res.status}`;
-    if (i === waits.length - 1) throw new Error(`BMA home failed after ${waits.length} tries: ${why}`);
-    console.log(`BMA home ${why}; retrying in ${waits[i + 1] / 60_000} min`);
+    const why: string[] = [];
+    for (const [kind, url] of [['home', 'https://weather.bangkok.go.th/'], ['flood', 'https://weather.bangkok.go.th/flood/']] as const) {
+      const res = await fetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(90_000) }).catch((e) => e as Error);
+      if (!(res instanceof Error) && res.ok) return { kind, text: await res.text() };
+      why.push(`${kind} ${res instanceof Error ? res.message : `HTTP ${res.status}`}`);
+    }
+    if (i === waits.length - 1) throw new Error(`BMA pages failed after ${waits.length} rounds: ${why.join(', ')}`);
+    console.log(`BMA ${why.join(', ')}; retrying in ${waits[i + 1] / 60_000} min`);
   }
 }
-const home = parseBmaHome(await fetchHome());
+const page = await fetchPage();
+const { day, bucket } = slot(Date.now());
+const updated = `${day}T${bucket}`;
+let readings: { code: string; th: string; en: string; lng: number; lat: number; cm: number; updated: string }[];
+
+if (page.kind === 'flood') {
+  // Every sensor that reported in the last 6 h; silent ones are left out (shown as "no data", not 0 cm).
+  const fresh = parseBmaFloodPage(page.text, Date.now());
+  readings = fresh.map((r) => ({ ...r, updated }));
+  console.log(`${updated} via /flood/: ${fresh.length} sensors reporting, flooded ${fresh.filter((r) => r.cm > 0).length}`);
+} else {
+const home = parseBmaHome(page.text);
 const flooded = new Map(home.map((r) => [norm(r.name), r.cm]));
 
 // Name -> station. A name shared by two codes can't be placed reliably, so it's reported instead of doubled.
@@ -80,16 +97,14 @@ if (unmatched.length) {
   for (const s of extra) { stations.push(s); byName.set(s.flood_name, s); }
   unmatched = unmatched.filter((n) => !byName.has(n));
 }
-
-const { day, bucket } = slot(Date.now());
-const updated = `${day}T${bucket}`;
-const readings = stations.filter((s) => s.latitude && s.longitude && byName.get(norm(s.flood_name)) === s).map((s) => ({
+readings = stations.filter((s) => s.latitude && s.longitude && byName.get(norm(s.flood_name)) === s).map((s) => ({
   code: s.flood_code, th: norm(s.flood_name), en: s.flood_name_en ?? '', lng: s.longitude, lat: s.latitude,
   cm: flooded.get(norm(s.flood_name)) ?? 0, // the home page lists only flooded stations
   updated,
 }));
 console.log(`${updated} flooded ${flooded.size}, unmatched ${unmatched.length}${unmatched.length ? ': ' + unmatched.join(' | ') : ''}`
   + (ambiguous.length ? `, ambiguous names skipped: ${ambiguous.join(' | ')}` : ''));
+}
 
 if (dry) {
   console.log(readings.filter((r) => r.cm > 0).map((r) => `${r.cm} ${r.th}`).join('\n'));

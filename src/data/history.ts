@@ -478,3 +478,32 @@ export function matchesSearch(text: string, query: string) {
   const t = normSearch(text), words = query.trim().split(/\s+/).map(normSearch).filter(Boolean);
   return words.length > 0 && words.every((w) => t.includes(w));
 }
+
+// ---------- BMA road sensors from weather.bangkok.go.th/flood/ (`const floodData = [...]`) ----------
+/** Returns the JSON array/object literal that starts right after `marker`. */
+export function extractJsonAfter(src: string, marker: string): unknown {
+  const start = src.indexOf('[', src.indexOf(marker) + marker.length);
+  if (src.indexOf(marker) < 0 || start < 0) throw new Error(`marker not found: ${marker}`);
+  let depth = 0, inStr = false;
+  for (let i = start; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      if (c === '\\') i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === '[' || c === '{') depth++;
+    else if ((c === ']' || c === '}') && --depth === 0) return JSON.parse(src.slice(start, i + 1));
+  }
+  throw new Error('unterminated JSON');
+}
+
+
+export interface BmaFloodReading { code: string; th: string; en: string; lng: number; lat: number; cm: number }
+/** All road sensors on BMA's /flood/ page that reported within `maxAgeMs` (a sensor that went silent must not read "0 cm").
+ *  Used by the Mac collector when the home page (which lists flooded stations only) answers 403. */
+export function parseBmaFloodPage(html: string, now: number, maxAgeMs = 6 * 3600_000): BmaFloodReading[] {
+  const rows = extractJsonAfter(html, 'const floodData =') as { flood_code?: string; flood_name?: string; flood_name_en?: string; flood?: number | null; latitude?: number; longitude?: number; site_timestamp?: string }[];
+  const norm = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim();
+  return rows.filter((r) => r.flood_code && r.flood_name && r.latitude && r.longitude && r.site_timestamp && now - bkkMs(r.site_timestamp) <= maxAgeMs)
+    .map((r) => ({ code: String(r.flood_code), th: norm(r.flood_name), en: norm(r.flood_name_en), lng: Number(r.longitude), lat: Number(r.latitude), cm: Math.max(0, Number(r.flood) || 0) }));
+}

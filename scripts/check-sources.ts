@@ -2,7 +2,8 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, matchesSearch, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, parseBmaFloodPage, matchesSearch, type DayFile, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
+import { chartSvg, stationSeries } from '../src/data/chart.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -204,3 +205,37 @@ assert.ok(matchesSearch('Soi Ari 2', 'ari'));
 assert.ok(!matchesSearch('ถ.ลาดพร้าว', 'ลาดพร้าว รามอินทรา'));
 assert.ok(!matchesSearch('อะไรก็ได้', '   '));
 console.log('search ok');
+
+// Charts: series pulled from day files (road zero-fills, canal doesn't), SVG has the line and only a nearby bank.
+{
+  const f = emptyDay();
+  f.road['10:00'] = { A: 20 }; f.road['10:10'] = {}; f.road['10:20'] = { A: 30 }; f.canal['10:00'] = { C: 1.0 }; f.canal['10:20'] = { C: 1.2 };
+  const from = Date.parse('2026-09-27T10:00:00+07:00'), to = Date.parse('2026-09-27T10:20:00+07:00');
+  const files: [string, DayFile][] = [['2026-09-27', f]];
+  assert.deepStrictEqual(stationSeries(files, 'road', 'A', from, to).map((p) => p[1]), [20, 0, 30]);
+  assert.deepStrictEqual(stationSeries(files, 'canal', 'C', from, to).map((p) => p[1]), [1.0, 1.2]);
+  assert.strictEqual(stationSeries(files, 'canal', 'C', from + 1, to).length, 1);
+  const pts: [number, number][] = [[from, 1.0], [from + 600_000, 1.1], [to, 1.2]];
+  const svg = chartSvg(pts, { unit: 'm', digits: 2, from, to, bank: 1.5 });
+  assert.ok(svg.includes('<path') && svg.includes('stroke-dasharray') && svg.includes('1.50'));
+  assert.ok(!chartSvg(pts, { unit: 'm', digits: 2, from, to, bank: 9 }).includes('stroke-dasharray'));
+  assert.strictEqual(chartSvg(pts.slice(0, 2), { unit: 'm', digits: 2, from, to }), '');
+  assert.ok(svg.includes('27/09 10:00') && svg.includes('27/09 10:20'));
+  console.log('charts ok');
+}
+
+// BMA /flood/ page: fresh sensors only, cm as a non-negative number, names tidied.
+{
+  const now = Date.parse('2026-09-30T09:00:00+07:00');
+  const html = `<script>const x=1; const floodData = [
+    {"flood_code":"FL.A.01","flood_name":"ถ.  ก  *","flood_name_en":"Rd A","flood":12.5,"latitude":13.7,"longitude":100.5,"site_timestamp":"2026-09-30T08:40:00.083"},
+    {"flood_code":"FL.B.02","flood_name":"ถ.ข","flood_name_en":"","flood":null,"latitude":13.8,"longitude":100.6,"site_timestamp":"2026-09-30T08:50:00"},
+    {"flood_code":"FL.C.03","flood_name":"ถ.ค","flood_name_en":"Rd C","flood":30,"latitude":13.9,"longitude":100.7,"site_timestamp":"2026-09-11T11:00:00"},
+    {"flood_code":"FL.D.04","flood_name":"ถ.ง","flood_name_en":"Rd D","flood":-3,"latitude":0,"longitude":0,"site_timestamp":"2026-09-30T08:50:00"}
+  ]; const y = 2;</script>`;
+  assert.deepStrictEqual(parseBmaFloodPage(html, now), [
+    { code: 'FL.A.01', th: 'ถ. ก *', en: 'Rd A', lng: 100.5, lat: 13.7, cm: 12.5 },
+    { code: 'FL.B.02', th: 'ถ.ข', en: '', lng: 100.6, lat: 13.8, cm: 0 },
+  ]);
+  console.log('bma flood page ok');
+}

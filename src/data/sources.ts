@@ -5,7 +5,7 @@
 
 import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, type TwLive, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
-  parseC13, parseRiver, type RiverRow, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type TopRow, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
+  parseC13, extractJsonAfter, parseRiver, type RiverRow, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type TopRow, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
 export type { RiverRow, TopRow, NationPoints, DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
 export { bkkMs, parseLatLng };
@@ -81,23 +81,7 @@ const httpsOnly = (u: string | null) => (u && /^https:\/\//.test(u) ? u : '');
 
 export const roadLevel = (cm: number): Level => (cm <= 0 ? 0 : cm < 10 ? 1 : cm < 20 ? 2 : 3);
 
-/** Returns the JSON array/object literal that starts right after `marker`. */
-export function extractJsonAfter(src: string, marker: string): unknown {
-  const start = src.indexOf('[', src.indexOf(marker) + marker.length);
-  if (src.indexOf(marker) < 0 || start < 0) throw new Error(`marker not found: ${marker}`);
-  let depth = 0, inStr = false;
-  for (let i = start; i < src.length; i++) {
-    const c = src[i];
-    if (inStr) {
-      if (c === '\\') i++;
-      else if (c === '"') inStr = false;
-    } else if (c === '"') inStr = true;
-    else if (c === '[' || c === '{') depth++;
-    else if ((c === ']' || c === '}') && --depth === 0) return JSON.parse(src.slice(start, i + 1));
-  }
-  throw new Error('unterminated JSON');
-}
-
+export { extractJsonAfter } from './history.ts';
 interface BmaRaw {
   flood_code: string; flood_name: string; flood_name_en: string; flood: number | null;
   flood_start: string | null; flood_max: number | null; latitude: number; longitude: number;
@@ -297,7 +281,13 @@ export async function fetchTrends(now = Date.now()) {
   const d1 = slot(now - DAY).day, d0 = slot(now).day;
   const [a, b] = (await Promise.all([get(d1), get(d0)])) as (DayFile | null)[];
   const files = ([[d1, a], [d0, b]] as [string, DayFile | null][]).filter((x): x is [string, DayFile] => x[1] != null);
-  return files.length ? { road: sensorTrends(files, 'road', now), canal: sensorTrends(files, 'canal', now) } : null;
+  return files.length ? { road: sensorTrends(files, 'road', now), canal: sensorTrends(files, 'canal', now), files } : null;
+}
+/** The last 7 Bangkok days of history files (oldest first), for the 7-day chart. Fetched only when someone asks for it. */
+export async function fetchWeek(now = Date.now()): Promise<[string, DayFile][]> {
+  const days = Array.from({ length: 7 }, (_, i) => slot(now - (6 - i) * DAY).day);
+  const got = await Promise.all(days.map((d) => fetch(`/api/history/${d}`, { signal: AbortSignal.timeout(30_000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+  return days.flatMap((d, i) => (got[i] ? [[d, got[i] as DayFile] as [string, DayFile]] : []));
 }
 export async function loadHistory(at: number): Promise<Snapshot> {
   const get = async (key: string) => {
