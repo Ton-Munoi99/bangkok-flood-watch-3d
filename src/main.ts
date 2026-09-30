@@ -7,10 +7,12 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import provincesGeoUrl from '../data/th_provinces.geojson?url';
 import amphoeGeoUrl from '../data/th_amphoe.geojson?url';
+import { chartSvg, stationSeries } from './data/chart';
+import type { DayFile } from './data/history';
 import { amphoeLevel, bboxOf, inPolys, matchesSearch, provinceLevel, type Ring as PolyRing } from './data/history';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, type DohFlood, type DwrCamera, type Trend,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, fetchWeek, type DohFlood, type DwrCamera, type Trend,
   fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type RiverRow, type Dam, type FloodEvent, type ProvinceSum, type TopRow, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
@@ -46,6 +48,7 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ ต่างจังหวัด · ล้นตลิ่ง ${o}/${n} สถานี (${p} จังหวัด)`, provRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น ${nr} · จาก ${n} สถานี`,
     provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
     tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
+    chart24: '24 ชม.', chart7: '7 วัน', chartLoading: 'กำลังโหลดข้อมูล 7 วัน…', chartTitle: (r: string) => `ระดับย้อนหลัง ${r}`, chartNote: 'จากข้อมูลที่เราเก็บทุก 10 นาที · เส้นประแดง = ตลิ่ง',
     sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)',
     sk: { district: 'เขต', road: 'น้ำท่วมถนน', canal: 'คลอง/แม่น้ำ', rain: 'ฝน', event: 'เหตุการณ์', doh: 'ทางหลวง', report: 'Traffy', cam: 'กล้อง' } as Record<string, string>,
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
@@ -157,6 +160,7 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ Other provinces · over bank ${o}/${n} stations (${p} provinces)`, provRow: (o: number, nr: number, n: number) => `over bank ${o} · near ${nr} · of ${n} stations`,
     provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
     tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
+    chart24: '24 h', chart7: '7 days', chartLoading: 'Loading 7 days…', chartTitle: (r: string) => `History, last ${r}`, chartNote: 'From readings we record every 10 min · red dashes = bank',
     sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)',
     sk: { district: 'District', road: 'Road flood', canal: 'Canal/river', rain: 'Rain', event: 'Incident', doh: 'Highway', report: 'Traffy', cam: 'Camera' } as Record<string, string>,
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
@@ -313,6 +317,27 @@ const roadStuckH = (r: RoadFlood) => {
   return tr && tr.flatV === r.cm && tr.flatH >= STUCK_ROAD_H ? Math.floor(tr.flatH) : 0;
 };
 const liveRoad = () => road.items.filter((r) => !roadStuckH(r));
+// ---------- station history charts (popups) ----------
+let chartWeek = false, weekFiles: [string, DayFile][] | null = null, lastShow: (() => void) | null = null;
+const DAY_MS = 86400_000;
+function chartBlock(kind: 'road' | 'canal', id: string, o: { bank?: number | null; unit: string; digits: number; color: string }) {
+  if (historyAt != null) return '';
+  const L = t(), now = Date.now(), from = now - (chartWeek ? 7 : 1) * DAY_MS;
+  const files = chartWeek && weekFiles ? weekFiles : trends?.files ?? [];
+  const svg = chartSvg(stationSeries(files, kind, id, from, now), { ...o, from, to: now, title: L.chartTitle(chartWeek ? L.chart7 : L.chart24) });
+  if (!svg) return '';
+  return `<div class="chartbox"><div class="r"><span>${L.chartTitle(chartWeek ? L.chart7 : L.chart24)}</span><button class="btn small" data-chart-range>${chartWeek ? L.chart24 : L.chart7}</button></div>${svg}<div class="empty">${L.chartNote}</div></div>`;
+}
+async function toggleChartRange() {
+  chartWeek = !chartWeek;
+  if (chartWeek && !weekFiles) {
+    const box = document.querySelector('.maplibregl-popup:not(.hover-pop) .chartbox');
+    if (box) box.insertAdjacentHTML('afterbegin', `<div class="empty">${t().chartLoading}</div>`);
+    weekFiles = await fetchWeek();
+    if (!weekFiles.length) { weekFiles = null; chartWeek = false; }
+  }
+  lastShow?.();
+}
 const canalTrend = (c: Canal): Trend | undefined => (historyAt == null ? trends?.canal.get(c.id) : undefined);
 let simOn = false;
 let simCm = 60;
@@ -1183,11 +1208,13 @@ function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = 
 }
 function showRoad(r: RoadFlood, fly = false) {
   const L = t(), d = findDistrict(r.lng, r.lat);
+  lastShow = () => showRoad(r);
   open([r.lng, r.lat], `<b>${esc(name(r))}</b>` +
     row(L.status, `<span style="color:${LEVEL_COLORS[r.level]}">${r.cm > 0 ? lvlName(r.level) : L.noFloodReport}</span>`) +
     (d ? row(L.districtLbl, esc(dName(d))) : '') +
     row(L.waterNow, `${r.cm} cm`) + (r.maxCm != null ? row(L.max, `${r.maxCm} cm`) : '') + (r.start ? row(L.since, hhmm(r.start)) : '') + row(L.updated, hhmm(r.updated)) +
     (roadStuckH(r) ? `<div class="empty" style="color:var(--l2)">${L.stuckRoad(roadStuckH(r))}</div>` : '') +
+    chartBlock('road', r.id, { unit: 'cm', digits: 0, color: r.cm > 0 ? LEVEL_COLORS[r.level] : '#38bdf8' }) +
     `<div class="r"><a href="${esc(r.url)}" target="_blank" rel="noopener">${L.detail} ↗</a></div>` + nearCameraRow(r), fly);
 }
 /** Status text for a canal point: bank bands for BMA points, ThaiWater bands otherwise, or why it's grey. */
@@ -1210,12 +1237,14 @@ function trendTxt(c: Canal) {
 const canalStuckH = (c: Canal) => { const tr = canalTrend(c); return tr && tr.flatV === c.wl && tr.flatH >= STUCK_CANAL_H ? Math.floor(tr.flatH) : 0; };
 function showCanal(c: Canal, fly = false) {
   const L = t();
+  lastShow = () => showCanal(c);
   open([c.lng, c.lat], `<b>${esc(name(c))}</b>` +
     row(L.status, `<span style="color:${SITUATION_COLORS[c.situation]}">${canalStatus(c)}</span>`) +
     row(L.waterNow, `${c.wl.toFixed(2)} ${L.msl}`) +
     (c.bank != null ? row(L.bank, `${c.bank.toFixed(2)} ${L.msl}`) + row(L.toBank, `${(c.bank - c.wl).toFixed(2)} m`) : '') +
     (trendTxt(c) ? row(L.trendLbl, trendTxt(c)) : '') + row(L.agency, esc(c.agency)) + row(L.updated, hhmm(c.updated)) +
-    (canalStuckH(c) ? `<div class="empty" style="color:var(--l2)">${L.stuckCanal(canalStuckH(c))}</div>` : ''), fly);
+    (canalStuckH(c) ? `<div class="empty" style="color:var(--l2)">${L.stuckCanal(canalStuckH(c))}</div>` : '') +
+    chartBlock('canal', c.id, { bank: c.bank, unit: 'm', digits: 2, color: SITUATION_COLORS[c.situation] || '#38bdf8' }), fly);
 }
 function showRain(r: Rain, fly = false) {
   const L = t();
@@ -1452,6 +1481,7 @@ function wireDialogs() {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-share-district]');
     const d = b && districts.find((x) => x.code === b.dataset.shareDistrict);
     if (d) shareLink(districtUrl(d), b);
+    if ((e.target as HTMLElement).closest('[data-chart-range]')) toggleChartRange();
   });
   const nearDlg = $<HTMLDialogElement>('nearDlg'), nearMsg = $('nearMsg');
   $('nearBtn').addEventListener('click', () => { nearMsg.textContent = ''; $<HTMLInputElement>('nearInput').placeholder = t().nearPh; nearDlg.showModal(); });
