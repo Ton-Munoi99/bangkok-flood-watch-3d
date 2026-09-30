@@ -103,7 +103,9 @@ export const TW = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public';
 /** ThaiWater feeds the page needs live. ThaiWater rate-limits per referring website, so browsers don't call it:
  *  the collector fetches these once per run and serves the copy at /api/history/twlive. */
 export const TW_LIVE_PATHS = ['flood_road', 'canal_waterlevel', 'waterlevel_load?province_code=10', 'rain_24h?province_code=10',
-  'waterlevel_load?province_code=18', 'waterlevel_load?province_code=14'] as const;
+  'waterlevel_load?province_code=18', 'waterlevel_load?province_code=14', 'waterlevel_load?province_code=12', 'waterlevel_load?province_code=15',
+  'waterlevel_load?province_code=17', 'waterlevel_load?province_code=60'] as const;
+export const RIVER_PROVINCES = ['10', '12', '14', '15', '17', '18', '60'] as const;
 export interface TwLive { fetchedAt: string; data: Partial<Record<(typeof TW_LIVE_PATHS)[number], unknown>> }
 export const TRAFFY = 'https://publicapi.traffy.in.th/share/teamchadchart/search';
 
@@ -227,18 +229,19 @@ export function parseC13(load: { waterlevel_data?: { data?: unknown[] } }) {
   return r ? { discharge: Number(r.discharge), time: r.waterlevel_datetime } : null;
 }
 
-/** Chao Phraya main-stem gauges, upstream → Bangkok: Chao Phraya Dam outflow, Ayutthaya (Ban Pom), Samsen, Krung Thep Bridge. */
-export const RIVER_CODES = ['C.13', 'C.35', 'C.12', 'CPY015'];
-export interface RiverRow { code: string; th: string; wl: number | null; bank: number | null; discharge: number | null; time: string; lng: number; lat: number }
+/** Chao Phraya main-stem gauges, upstream (Nakhon Sawan) → Bangkok, chosen from ThaiWater's station codes and names
+ *  (CPY0xx bridges/towns and RID C.x stations along the river; the CPY canals such as Bang Luang, Bang Ban, Sena are left out). */
+export const RIVER_CODES = ['C.2', 'CPY002', 'CPY003', 'CPY004', 'C.13', 'CPY005', 'CPY006', 'C.3', 'CPY007', 'C.7A', 'HDA009', 'C.35', 'CPY012', 'CPY014', 'C.12', 'CPY015'];
+export interface RiverRow { id: string; code: string; th: string; wl: number | null; bank: number | null; discharge: number | null; time: string; lng: number; lat: number }
 /** Pick the given stations out of waterlevel_load responses, in the order of `codes` (missing ones are skipped). */
 export function parseRiver(loads: ({ waterlevel_data?: { data?: unknown[] } } | null)[], codes = RIVER_CODES): RiverRow[] {
   type Row = { waterlevel_msl: string | null; discharge: string | number | null; waterlevel_datetime: string;
-    station?: { tele_station_oldcode?: string; tele_station_name?: { th?: string }; min_bank?: number | string | null; tele_station_lat?: number; tele_station_long?: number } };
+    station?: { id?: number; tele_station_oldcode?: string; tele_station_name?: { th?: string }; min_bank?: number | string | null; tele_station_lat?: number; tele_station_long?: number } };
   const rows = loads.flatMap((l) => (l?.waterlevel_data?.data ?? []) as Row[]);
   const num = (x: unknown) => (x == null || x === '' || !Number.isFinite(Number(x)) ? null : Number(x));
   return codes.flatMap((code) => {
     const r = rows.find((x) => x.station?.tele_station_oldcode === code);
-    return r ? [{ code, th: String(r.station?.tele_station_name?.th ?? code), wl: num(r.waterlevel_msl), bank: realBank(num(r.station?.min_bank)),
+    return r ? [{ id: String(r.station?.id ?? ''), code, th: String(r.station?.tele_station_name?.th ?? code), wl: num(r.waterlevel_msl), bank: realBank(num(r.station?.min_bank)),
       discharge: num(r.discharge), time: r.waterlevel_datetime, lng: Number(r.station?.tele_station_long), lat: Number(r.station?.tele_station_lat) }] : [];
   });
 }
@@ -506,4 +509,12 @@ export function parseBmaFloodPage(html: string, now: number, maxAgeMs = 6 * 3600
   const norm = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim();
   return rows.filter((r) => r.flood_code && r.flood_name && r.latitude && r.longitude && r.site_timestamp && now - bkkMs(r.site_timestamp) <= maxAgeMs)
     .map((r) => ({ code: String(r.flood_code), th: norm(r.flood_name), en: norm(r.flood_name_en), lng: Number(r.longitude), lat: Number(r.latitude), cm: Math.max(0, Number(r.flood) || 0) }));
+}
+
+/** Record the Chao Phraya gauges in the canal history (same format as Bangkok's telemetry), so they get 1 h/24 h
+ *  trends and popup charts like every other water gauge. Uses the same waterlevel_load rows parseRiver reads. */
+export function addRiverHistory(meta: Meta, b: DayBuilder, loads: ({ waterlevel_data?: { data?: unknown[] } } | null)[], codes: readonly string[] = RIVER_CODES) {
+  type Rows = Parameters<typeof addCanal>[2];
+  const rows = loads.flatMap((l) => (l?.waterlevel_data?.data ?? []) as Rows).filter((r) => codes.includes(String((r.station as { tele_station_oldcode?: string }).tele_station_oldcode)));
+  addCanal(meta, b, rows);
 }

@@ -415,7 +415,7 @@ export async function fetchTrafficIndex(): Promise<number | null> {
 // and the per-province summary (the nationwide feed is too big to fetch in the browser).
 export interface UpstreamView { dams: Dam[]; c13: { discharge: number; time: string } | null; tmd: TmdWarning[]; provinces: Provinces | null; nation: NationPoints | null; river: RiverRow[] }
 export async function fetchUpstream(): Promise<UpstreamView> {
-  const [up, load, tmd, provinces, nation, ayutthaya, bangkok] = await Promise.all([
+  const [up, load, tmd, provinces, nation, ayutthaya, bangkok, ...others] = await Promise.all([
     getJson('/api/history/upstream').catch(() => null) as Promise<Upstream | null>,
     tw('waterlevel_load?province_code=18').catch(() => null),
     getJson('/api/history/tmd').catch(() => null) as Promise<TmdFeed | null>,
@@ -424,6 +424,7 @@ export async function fetchUpstream(): Promise<UpstreamView> {
     // Chao Phraya main stem (small per-province feeds, fetched live like C.13)
     tw('waterlevel_load?province_code=14').catch(() => null),
     tw('waterlevel_load?province_code=10').catch(() => null),
+    ...['12', '15', '17', '60'].map((p) => tw(`waterlevel_load?province_code=${p}`).catch(() => null)),
   ]);
   // The collector refreshes these every 30 min; if it has stopped, show no colours (grey) rather than hours-old ones unlabelled.
   const fresh = <T extends { fetchedAt: string }>(x: T | null) => (x && Date.now() - Date.parse(x.fetchedAt) < 3 * 3600_000 ? x : null);
@@ -431,5 +432,5 @@ export async function fetchUpstream(): Promise<UpstreamView> {
   const since = slot(Date.now() - 3 * 86400_000).day;
   return { dams: up?.dams ?? [], c13: load ? parseC13(load) : null, tmd: (tmd?.items ?? []).filter((w) => w.day && w.day >= since), provinces: fresh(provinces), nation: fresh(nation),
     // Drop readings older than 6 h so a stalled gauge isn't shown as current.
-    river: parseRiver([load, ayutthaya, bangkok]).filter((r) => Date.now() - bkkMs(r.time) < 6 * 3600_000) };
+    river: parseRiver([load, ayutthaya, bangkok, ...others]).filter((r) => Date.now() - bkkMs(r.time) < 6 * 3600_000) };
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
 import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, parseBmaFloodPage, matchesSearch, type DayFile, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
-import { chartSvg, stationSeries } from '../src/data/chart.ts';
+import { chartSvg, riverBarsSvg, stationSeries } from '../src/data/chart.ts';
 
 
 const tricky = 'x const floodData = [{"a":"has ] and } and \\" inside","b":[1,{"c":2}]}];\nconst other = [9];';
@@ -188,12 +188,12 @@ console.log('province level ok');
 
 // Chao Phraya rows: requested order, missing stations skipped, placeholder banks dropped.
 {
-  const st = (code: string, th: string, bank: unknown) => ({ tele_station_oldcode: code, tele_station_name: { th }, min_bank: bank, tele_station_lat: 13.8, tele_station_long: 100.5 });
+  const st = (code: string, th: string, bank: unknown) => ({ id: 7, tele_station_oldcode: code, tele_station_name: { th }, min_bank: bank, tele_station_lat: 13.8, tele_station_long: 100.5 });
   const r = parseRiver([{ waterlevel_data: { data: [
     { waterlevel_msl: '2.24', discharge: null, waterlevel_datetime: '2026-09-28 08:00', station: st('C.12', 'สามเสน', 2.26) },
     { waterlevel_msl: '4.75', discharge: '1272.00', waterlevel_datetime: '2026-09-28 08:00', station: st('C.35', 'บ้านป้อม', '0') },
   ] } }, null], ['C.13', 'C.35', 'C.12']);
-  assert.deepStrictEqual(r.map((x) => [x.code, x.wl, x.bank, x.discharge]), [['C.35', 4.75, null, 1272], ['C.12', 2.24, 2.26, null]]);
+  assert.deepStrictEqual(r.map((x) => [x.code, x.wl, x.bank, x.discharge, x.id]), [['C.35', 4.75, null, 1272, '7'], ['C.12', 2.24, 2.26, null, '7']]);
   console.log('river ok');
 }
 
@@ -238,4 +238,16 @@ console.log('search ok');
     { code: 'FL.B.02', th: 'ถ.ข', en: '', lng: 100.6, lat: 13.8, cm: 0 },
   ]);
   console.log('bma flood page ok');
+}
+
+// River bars: margin to bank per gauge, gauges without a bank skipped, colours by margin.
+{
+  const svg = riverBarsSvg([
+    { code: 'A', th: 'ก', wl: 3, bank: 2.5 }, { code: 'B', th: 'ข', wl: 2.3, bank: 2.5 }, { code: 'C', th: 'ค', wl: 1, bank: 2.5 }, { code: 'D', th: 'ง', wl: 1, bank: null },
+  ], { over: 'RED', near: 'YEL', ok: 'GRN' });
+  assert.ok(svg.includes('fill="RED"') && svg.includes('fill="YEL"') && svg.includes('fill="GRN"'));
+  assert.strictEqual((svg.match(/<rect/g) ?? []).length, 3);
+  assert.ok(svg.includes('+0.50 m') && svg.includes('-1.50 m'));
+  assert.strictEqual(riverBarsSvg([{ code: 'A', th: 'ก', wl: 3, bank: 2.5 }], { over: 'r', near: 'y', ok: 'g' }), '');
+  console.log('river bars ok');
 }

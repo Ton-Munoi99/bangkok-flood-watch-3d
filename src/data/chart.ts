@@ -43,3 +43,29 @@ export function chartSvg(pts: Pt[], o: ChartOpts) {
     lbl(f(hi), L - 4, T + 3) + lbl(f(lo), L - 4, h - B) +
     lbl(stamp(o.from), L, h - 6, 'start') + lbl(stamp(o.to), w - R, h - 6) + `</svg>`;
 }
+
+export interface RiverBar { code: string; th: string; wl: number | null; bank: number | null }
+/** Bars of (water − bank) along the river, left = upstream. Above the line = over the bank (red), below = room left
+ *  (yellow when < 0.5 m, green otherwise). A raw level profile is unreadable here (Nakhon Sawan is 25 m higher than
+ *  Bangkok), so the picture is the margin at each gauge. Gauges without a bank level are skipped. */
+export function riverBarsSvg(rows: RiverBar[], colors: { over: string; near: string; ok: string }) {
+  const bars = rows.filter((r) => r.wl != null && r.bank != null).map((r) => ({ ...r, d: r.wl! - r.bank! }));
+  if (bars.length < 2) return '';
+  const w = 300, h = 150, L = 30, R = 6, T = 10, B = 52;
+  const hi = Math.max(0.5, ...bars.map((b) => b.d)), lo = Math.min(-0.5, ...bars.map((b) => b.d));
+  const y = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (h - T - B);
+  const slot = (w - L - R) / bars.length, bw = Math.max(6, slot - 4);
+  const col = (d: number) => (d >= 0 ? colors.over : d > -0.5 ? colors.near : colors.ok);
+  const f = (v: number) => (v > 0 ? '+' : '') + v.toFixed(2);
+  const short = (s: string) => (s.length > 14 ? s.slice(0, 13) + '…' : s);
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="water minus bank along the river">` +
+    `<line x1="${L}" y1="${y(0).toFixed(1)}" x2="${w - R}" y2="${y(0).toFixed(1)}" stroke="#f2495c" stroke-dasharray="4 3"/>` +
+    `<text x="${L - 3}" y="${(y(0) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="currentColor" opacity=".7">0</text>` +
+    `<text x="${L - 3}" y="${T + 3}" text-anchor="end" font-size="9" fill="currentColor" opacity=".7">${f(hi)}</text>` +
+    `<text x="${L - 3}" y="${h - B}" text-anchor="end" font-size="9" fill="currentColor" opacity=".7">${f(lo)}</text>` +
+    bars.map((b, i) => {
+      const x = L + i * slot + (slot - bw) / 2, y0 = y(0), y1 = y(b.d), top = Math.min(y0, y1), ht = Math.max(1.5, Math.abs(y1 - y0));
+      return `<g><title>${b.th} (${b.code}) ${f(b.d)} m</title><rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${ht.toFixed(1)}" rx="1.5" fill="${col(b.d)}"/>` +
+        `<text transform="translate(${(x + bw / 2 + 3).toFixed(1)} ${h - B + 4}) rotate(60)" font-size="7.5" fill="currentColor" opacity=".75">${short(b.th)}</text></g>`;
+    }).join('') + `</svg>`;
+}

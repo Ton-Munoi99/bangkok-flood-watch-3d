@@ -7,7 +7,7 @@ import districtsUrl from '../data/bkk_districts.geojson?url';
 import dwrCamsUrl from '../data/dwr_cameras.json?url';
 import provincesGeoUrl from '../data/th_provinces.geojson?url';
 import amphoeGeoUrl from '../data/th_amphoe.geojson?url';
-import { chartSvg, stationSeries } from './data/chart';
+import { chartSvg, riverBarsSvg, stationSeries } from './data/chart';
 import type { DayFile } from './data/history';
 import { amphoeLevel, bboxOf, inPolys, matchesSearch, provinceLevel, type Ring as PolyRing } from './data/history';
 import simData from '../data/bkk_data.json';
@@ -41,6 +41,7 @@ const T = {
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
     riverTitle: '🌊 แม่น้ำเจ้าพระยา (เหนือ → กทม.)', riverFlow: 'น้ำไหลผ่าน', riverSamsen: 'สามเสน', riverOver: (m: string) => `สูงกว่าตลิ่ง ${m} ม.`, riverBelow: (m: string) => `ต่ำกว่าตลิ่ง ${m} ม.`,
+    riverBars: 'แท่ง = ระดับน้ำ − ตลิ่ง แต่ละสถานี (ซ้าย = ต้นน้ำ, เกินเส้นแดง = สูงกว่าตลิ่ง) · รายชื่อสถานีเลือกโดยผู้พัฒนา อาจไม่ครบทุกจุด',
     riverNote: 'ระดับน้ำ ม.รทก. เทียบตลิ่งของสถานี (ไม่ใช่ความสูงคันกั้นน้ำ) · กรมชลประทาน / สสน. ผ่าน ThaiWater · เรียงจากต้นน้ำลงมา กทม.',
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
     upDam: (pct: number, inflow: number, release: number) => `ความจุ ${pct.toFixed(0)}% · ไหลเข้า ${inflow.toFixed(1)} · ระบาย ${release.toFixed(1)} ล้าน ลบ.ม./วัน`,
@@ -153,6 +154,7 @@ const T = {
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
     riverTitle: '🌊 Chao Phraya River (upstream → Bangkok)', riverFlow: 'Flow', riverSamsen: 'Samsen', riverOver: (m: string) => `${m} m above bank`, riverBelow: (m: string) => `${m} m below bank`,
+    riverBars: 'Bars = water − bank per gauge (left = upstream; above the red line = over the bank) · station list is hand-picked and may be incomplete',
     riverNote: 'Water level (m MSL) against each gauge\'s bank, not the flood-wall height · RID / HII via ThaiWater · listed from upstream down to Bangkok',
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
     upDam: (pct: number, inflow: number, release: number) => `${pct.toFixed(0)}% full · in ${inflow.toFixed(1)} · out ${release.toFixed(1)} million m³/day`,
@@ -868,13 +870,14 @@ function render() {
       const c = gap == null ? 'var(--accent)' : gap <= 0 ? LEVEL_COLORS[3] : gap < 0.3 ? LEVEL_COLORS[2] : gap < 0.5 ? LEVEL_COLORS[1] : LEVEL_COLORS[0];
       const canal = canals.items.find((x) => x.nameTh === r.th); // Bangkok gauges also have trends from our history
       const trend = canal ? trendTxt(canal) : '';
-      return `<button class="item" style="--c:${c}" data-top="${r.lng},${r.lat}">
+      return `<button class="item" style="--c:${c}" data-river="${esc(r.id)}">
         <div class="t"><span>${esc(r.th)} (${esc(r.code)})</span><span>${r.wl != null ? `${r.wl.toFixed(2)} m` : ''}</span></div>
         <div class="s">${[gap != null ? (gap <= 0 ? L.riverOver((-gap).toFixed(2)) : L.riverBelow(gap.toFixed(2))) : '', r.discharge != null ? `${L.riverFlow} ${r.discharge.toLocaleString()} ${L.upUnit}` : '', trend, esc(r.time.slice(11, 16))].filter(Boolean).join(' · ')}</div></button>`;
     };
     // Headline = Samsen (C.12), Bangkok's reference gauge; upstream stations can be over bank without Bangkok being so.
     const ss = upstream.river.find((r) => r.code === 'C.12' && r.wl != null && r.bank != null), gap = ss ? ss.bank! - ss.wl! : null;
     html += section('river', `${L.riverTitle}${gap != null ? ` · ${L.riverSamsen} ${gap <= 0 ? L.riverOver((-gap).toFixed(2)) : L.riverBelow(gap.toFixed(2))}` : ''}`,
+      `<div class="chartbox">${riverBarsSvg(upstream.river, { over: LEVEL_COLORS[3], near: LEVEL_COLORS[2], ok: LEVEL_COLORS[0] })}<div class="empty">${L.riverBars}</div></div>` +
       upstream.river.map(rowHtml).join('') + `<div class="empty" style="margin:4px 0 8px">${L.riverNote}</div>`);
   }
 
@@ -1246,6 +1249,16 @@ function showCanal(c: Canal, fly = false) {
     (canalStuckH(c) ? `<div class="empty" style="color:var(--l2)">${L.stuckCanal(canalStuckH(c))}</div>` : '') +
     chartBlock('canal', c.id, { bank: c.bank, unit: 'm', digits: 2, color: SITUATION_COLORS[c.situation] || '#38bdf8' }), fly);
 }
+function showRiver(r: RiverRow, fly = false) {
+  const L = t(), gap = r.wl != null && r.bank != null ? r.bank - r.wl : null;
+  lastShow = () => showRiver(r);
+  open([r.lng, r.lat], `<b>${esc(r.th)} (${esc(r.code)})</b>` +
+    (r.wl != null ? row(L.waterNow, `${r.wl.toFixed(2)} ${L.msl}`) : '') +
+    (r.bank != null ? row(L.bank, `${r.bank.toFixed(2)} ${L.msl}`) : '') +
+    (gap != null ? row(L.toBank, gap <= 0 ? L.riverOver((-gap).toFixed(2)) : L.riverBelow(gap.toFixed(2))) : '') +
+    (r.discharge != null ? row(L.riverFlow, `${r.discharge.toLocaleString()} ${L.upUnit}`) : '') + row(L.updated, r.time.slice(11, 16)) +
+    chartBlock('canal', r.id, { bank: r.bank, unit: 'm', digits: 2, color: '#38bdf8' }), fly);
+}
 function showRain(r: Rain, fly = false) {
   const L = t();
   open([r.lng, r.lat], `<b>${esc(name(r))}</b>` + row(L.rainLbl, `${r.mm} mm (${L.rainCls(r.mm)})`) + row(L.updated, hhmm(r.updated)), fly);
@@ -1418,6 +1431,7 @@ function wireControls() {
     else if (b.dataset.event) showEvent(events.items[+b.dataset.event], true);
     else if (b.dataset.district) showDistrict(districts.find((d) => d.code === b.dataset.district)!);
     else if (b.dataset.doh) showDoh(dohLive()[+b.dataset.doh], true);
+    else if (b.dataset.river) { const r = upstream?.river.find((x) => x.id === b.dataset.river); if (r) showRiver(r, true); }
     else if (b.dataset.top) { const [x, y] = b.dataset.top.split(',').map(Number); map.flyTo({ center: [x, y], zoom: 11, pitch: 0, duration: 1500 }); }
     else if (b.dataset.prov) showProvince(upstream!.provinces!.rows[+b.dataset.prov]);
     $('sidebar').classList.remove('open');
