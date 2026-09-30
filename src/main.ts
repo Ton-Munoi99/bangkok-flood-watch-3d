@@ -1098,6 +1098,7 @@ function showProvinceByCode(code: string, at: maplibregl.LngLat) {
   open(at, `<div class="empty">${t().provNoData}</div>`);
 }
 /** One-glance summary for the hover popup; '' = nothing to show. */
+const imgTag = (u?: string) => (u ? `<img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '');
 function hoverHtml(layer: string, i: number, id: unknown) {
   const L = t();
   const line = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' · ');
@@ -1112,10 +1113,10 @@ function hoverHtml(layer: string, i: number, id: unknown) {
     case 'road': { const r = road.items[i]; return r ? `<b>${esc(name(r))}</b><div class="s">${line(`${r.cm} cm`, r.cm > 0 ? lvlName(r.level) : L.noFloodReport, roadStuckH(r) > 0 && '⚠️', hhmm(r.updated))}</div>` : ''; }
     case 'canal': { const c = canals.items[i]; return c ? `<b>${esc(name(c))}</b><div class="s">${line(`${c.wl.toFixed(2)} ${L.msl}`, canalStatus(c), c.bank != null && `${L.toBank} ${(c.bank - c.wl).toFixed(2)} m`, trendTxt(c).split(' · ')[0], hhmm(c.updated))}</div>` : ''; }
     case 'rain': { const r = rain.items[i]; return r ? `<b>${esc(name(r))}</b><div class="s">${line(`${r.mm} mm / 24h`, r.mm1h != null && `${r.mm1h} mm / 1h`)}</div>` : ''; }
-    case 'reports': { const r = reports.items[i]; return r ? `<b>Traffy Fondue</b><div class="s">${line(esc(r.state), bkkTime(r.time))}</div>` : ''; }
-    case 'events': { const e = events.items[i]; return e ? `<b>${esc(lang === 'th' ? e.title : e.titleEn || e.title)}</b><div class="s">${line(e.impassable && `🚫 ${L.impassableTag}`, bkkTime(e.start))}</div>` : ''; }
+    case 'reports': { const r = reports.items[i]; return r ? `<b>Traffy Fondue</b><div class="s">${line(esc(r.state), bkkTime(r.time))}</div>${imgTag(r.photo)}` : ''; }
+    case 'events': { const e = events.items[i]; return e ? `<b>${esc(lang === 'th' ? e.title : e.titleEn || e.title)}</b><div class="s">${line(e.impassable && `🚫 ${L.impassableTag}`, bkkTime(e.start))}</div>${imgTag(e.image)}` : ''; }
     case 'doh': { const d = dohLive()[i]; return d ? `<b>🛣️ ${L.dohRoad} ${esc(Number(d.road) || d.road)} ${esc(d.section)}</b><div class="s">${line(d.cm != null && `${d.cm} cm`, d.impassable ? `🚫 ${L.dohNo}` : L.dohYes)}</div>` : ''; }
-    case 'cameras': { const c = cameras[i]; return c ? `<b>📷 ${esc(c.title)}</b>` : ''; }
+    case 'cameras': { const c = cameras[i]; return c ? `<b>📷 ${esc(c.title)}</b>${imgTag(c.img)}` : ''; }
     case 'dwr-cams': { const c = dwrShown()[i]; return c ? `<b>📷 ${esc(lang === 'th' ? c.th : c.en || c.th)}</b><div class="s">${L.dwrAgency}</div>` : ''; }
     case 'amp-fill': {
       const f = ampGeo?.features.find((x) => x.properties.id === Number(id)), st = ampStats.get(Number(id));
@@ -1212,7 +1213,7 @@ function showDwrCamera(c: DwrCamera) {
 }
 function showCamera(c: Camera) {
   const L = t();
-  open([c.lng, c.lat], `<b>📷 ${esc(c.title)}</b>` + row(L.camOwner, esc(c.org)) +
+  open([c.lng, c.lat], `<b>📷 ${esc(c.title)}</b>` + row(L.camOwner, esc(c.org)) + imgTag(c.img) +
     `<div class="r"><a href="${esc(longdoCameraUrl(c.id))}" target="_blank" rel="noopener">${L.camOpen} ↗</a></div>`);
 }
 

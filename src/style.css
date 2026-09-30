@@ -232,5 +232,6 @@ input[type=checkbox] { accent-color: var(--accent); }
 
 /* Hover summary: compact, and never in the way of the pointer. */
 .hover-pop { pointer-events: none; }
+.hover-pop .pop img { max-height: 130px; }
 .hover-pop .pop b { font-size: 13px; margin-bottom: 2px; padding-right: 0; }
 .hover-pop .pop .s { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
