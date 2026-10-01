@@ -283,9 +283,9 @@ export async function fetchTrends(now = Date.now()) {
   const files = ([[d1, a], [d0, b]] as [string, DayFile | null][]).filter((x): x is [string, DayFile] => x[1] != null);
   return files.length ? { road: sensorTrends(files, 'road', now), canal: sensorTrends(files, 'canal', now), files } : null;
 }
-/** The last 7 Bangkok days of history files (oldest first), for the 7-day chart. Fetched only when someone asks for it. */
-export async function fetchWeek(now = Date.now()): Promise<[string, DayFile][]> {
-  const days = Array.from({ length: 7 }, (_, i) => slot(now - (6 - i) * DAY).day);
+/** The last `n` Bangkok days of history files (oldest first; days we never recorded are skipped), for the 3/7/30-day charts. Fetched only when someone asks for it. */
+export async function fetchDays(n: number, now = Date.now()): Promise<[string, DayFile][]> {
+  const days = Array.from({ length: n }, (_, i) => slot(now - (n - 1 - i) * DAY).day);
   const got = await Promise.all(days.map((d) => fetch(`/api/history/${d}`, { signal: AbortSignal.timeout(30_000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
   return days.flatMap((d, i) => (got[i] ? [[d, got[i] as DayFile] as [string, DayFile]] : []));
 }

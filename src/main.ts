@@ -12,7 +12,7 @@ import type { DayFile } from './data/history';
 import { amphoeLevel, bboxOf, inPolys, matchesSearch, provinceLevel, type Ring as PolyRing } from './data/history';
 import simData from '../data/bkk_data.json';
 import {
-  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, fetchWeek, type DohFlood, type DwrCamera, type Trend,
+  fetchCanals, fetchRain, fetchReports, fetchRoadFlood, loadHistory, roadVia, reportsVia, bkkMs, fetchCameras, longdoCameraUrl, fetchDwrSnapshot, fetchTrends, fetchDoh, fetchDays, type DohFlood, type DwrCamera, type Trend,
   fetchEvents, fetchTrafficIndex, fetchUpstream, parseLatLng, type RiverRow, type Dam, type FloodEvent, type ProvinceSum, type TopRow, type UpstreamView,
   type Camera, type Canal, type Level, type Rain, type Report, type Result, type RoadFlood,
 } from './data/sources';
@@ -49,7 +49,7 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ ต่างจังหวัด · ล้นตลิ่ง ${o}/${n} สถานี (${p} จังหวัด)`, provRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น ${nr} · จาก ${n} สถานี`,
     provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
     tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
-    chart24: '24 ชม.', chart7: '7 วัน', chartLoading: 'กำลังโหลดข้อมูล 7 วัน…', chartTitle: (r: string) => `ระดับย้อนหลัง ${r}`, chartNote: 'จากข้อมูลที่เราเก็บทุก 10 นาที · เส้นประแดง = ตลิ่ง',
+    chart24: '24 ชม.', chartDays: (d: number) => `${d} วัน`, chart30Note: (n: number) => `เรามีข้อมูลเก็บไว้ ${n} วัน (เพิ่งเริ่มเก็บ)`, chartLoading: (d: number) => `กำลังโหลดข้อมูล ${d} วัน…`, chartTitle: (r: string) => `ระดับย้อนหลัง ${r}`, chartNote: 'จากข้อมูลที่เราเก็บทุก 10 นาที · เส้นประแดง = ตลิ่ง',
     sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)', placeBtn: '🌐 ค้นหาชื่อสถานที่/ซอยบนแผนที่ (OpenStreetMap)', placeBusy: 'กำลังค้นหา…', placeNone: 'OpenStreetMap ไม่พบสถานที่นี้ใน กทม.', placeErr: 'ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง', placeNote: 'ส่งคำค้นไปที่ nominatim.openstreetmap.org เฉพาะเมื่อกดปุ่มนี้ · ตำแหน่งจาก OpenStreetMap © ผู้ร่วมพัฒนา (ODbL) · เป็นเพียงตำแหน่ง ไม่ใช่ข้อมูลน้ำท่วม',
     sk: { district: 'เขต', road: 'น้ำท่วมถนน', canal: 'คลอง/แม่น้ำ', rain: 'ฝน', event: 'เหตุการณ์', doh: 'ทางหลวง', report: 'Traffy', cam: 'กล้อง' } as Record<string, string>,
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
@@ -163,7 +163,7 @@ const T = {
     provTitle: (o: number, n: number, p: number) => `🗺️ Other provinces · over bank ${o}/${n} stations (${p} provinces)`, provRow: (o: number, nr: number, n: number) => `over bank ${o} · near ${nr} · of ${n} stations`,
     provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
     tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
-    chart24: '24 h', chart7: '7 days', chartLoading: 'Loading 7 days…', chartTitle: (r: string) => `History, last ${r}`, chartNote: 'From readings we record every 10 min · red dashes = bank',
+    chart24: '24 h', chartDays: (d: number) => `${d} days`, chart30Note: (n: number) => `we only have ${n} days recorded so far`, chartLoading: (d: number) => `Loading ${d} days…`, chartTitle: (r: string) => `History, last ${r}`, chartNote: 'From readings we record every 10 min · red dashes = bank',
     sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)', placeBtn: '🌐 Find a place or soi on the map (OpenStreetMap)', placeBusy: 'Searching…', placeNone: 'OpenStreetMap found nothing in Bangkok for this.', placeErr: 'Search failed, please retry.', placeNote: 'Your query goes to nominatim.openstreetmap.org only when you press this button · positions © OpenStreetMap contributors (ODbL) · a location only, not flood data',
     sk: { district: 'District', road: 'Road flood', canal: 'Canal/river', rain: 'Rain', event: 'Incident', doh: 'Highway', report: 'Traffy', cam: 'Camera' } as Record<string, string>,
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
@@ -322,23 +322,26 @@ const roadStuckH = (r: RoadFlood) => {
 };
 const liveRoad = () => road.items.filter((r) => !roadStuckH(r));
 // ---------- station history charts (popups) ----------
-let chartWeek = false, weekFiles: [string, DayFile][] | null = null, lastShow: (() => void) | null = null;
+const CHART_DAYS = [1, 3, 7, 30] as const;
+let chartDays = 1, dayFiles: [string, DayFile][] = [], dayFilesN = 0, lastShow: (() => void) | null = null;
 const DAY_MS = 86400_000;
+const rangeTxt = (d: number) => (d === 1 ? t().chart24 : t().chartDays(d));
 function chartBlock(kind: 'road' | 'canal', id: string, o: { bank?: number | null; unit: string; digits: number; color: string }) {
   if (historyAt != null) return '';
-  const L = t(), now = Date.now(), from = now - (chartWeek ? 7 : 1) * DAY_MS;
-  const files = chartWeek && weekFiles ? weekFiles : trends?.files ?? [];
-  const svg = chartSvg(stationSeries(files, kind, id, from, now), { ...o, from, to: now, title: L.chartTitle(chartWeek ? L.chart7 : L.chart24) });
+  const L = t(), now = Date.now(), from = now - chartDays * DAY_MS;
+  const files = chartDays > 1 && dayFilesN >= chartDays ? dayFiles : trends?.files ?? [];
+  const svg = chartSvg(stationSeries(files, kind, id, from, now), { ...o, from, to: now, title: L.chartTitle(rangeTxt(chartDays)) });
   if (!svg) return '';
-  return `<div class="chartbox"><div class="r"><span>${L.chartTitle(chartWeek ? L.chart7 : L.chart24)}</span><button class="btn small" data-chart-range>${chartWeek ? L.chart24 : L.chart7}</button></div>${svg}<div class="empty">${L.chartNote}</div></div>`;
+  const next = CHART_DAYS[(CHART_DAYS.indexOf(chartDays as 1) + 1) % CHART_DAYS.length];
+  return `<div class="chartbox"><div class="r"><span>${L.chartTitle(rangeTxt(chartDays))}</span><button class="btn small" data-chart-range>${rangeTxt(next)}</button></div>${svg}<div class="empty">${L.chartNote}${chartDays === 30 && dayFiles.length < 30 ? ` · ${L.chart30Note(dayFiles.length)}` : ''}</div></div>`;
 }
 async function toggleChartRange() {
-  chartWeek = !chartWeek;
-  if (chartWeek && !weekFiles) {
+  chartDays = CHART_DAYS[(CHART_DAYS.indexOf(chartDays as 1) + 1) % CHART_DAYS.length];
+  if (chartDays > 1 && dayFilesN < chartDays) {
     const box = document.querySelector('.maplibregl-popup:not(.hover-pop) .chartbox');
-    if (box) box.insertAdjacentHTML('afterbegin', `<div class="empty">${t().chartLoading}</div>`);
-    weekFiles = await fetchWeek();
-    if (!weekFiles.length) { weekFiles = null; chartWeek = false; }
+    if (box) box.insertAdjacentHTML('afterbegin', `<div class="empty">${t().chartLoading(chartDays)}</div>`);
+    const got = await fetchDays(chartDays);
+    if (got.length) { dayFiles = got; dayFilesN = chartDays; } else chartDays = 1;
   }
   lastShow?.();
 }
