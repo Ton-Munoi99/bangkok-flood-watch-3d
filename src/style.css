@@ -205,6 +205,12 @@ input[type=checkbox] { accent-color: var(--accent); }
 .traffic-row .btn { margin: 0; }
 /* the open layer picker never grows past the screen */
 .layers[open] { max-height: calc(100vh - 230px); max-height: calc(100dvh - 230px); overflow-y: auto; }
+/* Desktop and big tablets: the layer list is a vertical rail down the left edge, always open, below the top widgets (--rail-top is measured in main.ts). */
+@media (min-width: 821px) and (min-height: 560px) {
+  .layers { position: fixed; left: var(--gap); top: var(--rail-top, 210px); width: 218px; max-width: none; z-index: 4; }
+  .layers[open] { max-height: calc(100vh - var(--rail-top, 210px) - 160px); max-height: calc(100dvh - var(--rail-top, 210px) - 160px); }
+  .layers label { padding: 3px 0; }
+}
 /* quick actions + dialogs (hotlines, rain forecast) */
 .quick-row { display: flex; gap: 6px; margin: 0 0 6px; flex-wrap: wrap; }
 .quick-row .btn { margin: 0; }

@@ -608,8 +608,10 @@ map.on('load', async () => {
 
   // On phones start the credit line folded behind the ⓘ button (still one tap away).
   if (matchMedia('(max-width: 820px)').matches) document.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
-  // Keep the layer picker open on roomy screens; small screens start folded (the button stays visible).
-  if (innerWidth >= 1200 && innerHeight >= 800) (document.querySelector('details.layers') as HTMLDetailsElement).open = true;
+  // Wide screens show the layer list as an always-open rail on the left, below the top widgets.
+  const rail = matchMedia('(min-width: 821px) and (min-height: 560px)'), layersEl = document.querySelector('details.layers') as HTMLDetailsElement, topEl = document.querySelector('.top')!;
+  const placeRail = () => { layersEl.open ||= rail.matches; document.documentElement.style.setProperty('--rail-top', `${Math.round(topEl.getBoundingClientRect().bottom + 8)}px`); };
+  new ResizeObserver(placeRail).observe(topEl); rail.addEventListener('change', () => { layersEl.open = rail.matches; placeRail(); }); placeRail();
   wireControls();
   applyLang();
   setNation(nationOn, false); // restore the viewer's last choice without moving the map
