@@ -401,6 +401,8 @@ map.addControl({
   onRemove() {},
 }, 'bottom-right');
 const popup = new maplibregl.Popup({ maxWidth: '300px', focusAfterOpen: false });
+// Esc closes the open popup (unless typing in a field).
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) popup.remove(); });
 // Hover summary (mouse only): no close button, never grabs focus, doesn't close on map clicks by itself.
 const hover = new maplibregl.Popup({ maxWidth: '260px', closeButton: false, closeOnClick: false, focusAfterOpen: false, offset: 14, className: 'hover-pop' });
 
@@ -1233,7 +1235,8 @@ const row = (k: string, v: string) => `<div class="r"><span>${k}</span><span>${v
 function open(lngLat: [number, number] | maplibregl.LngLat, html: string, fly = false) {
   // Land the point below the stats panel (and left of the sidebar on desktop) so its popup isn't covered.
   // Land the point where the popup has room: right-hand list on desktop, low on a phone, below the compact top rows on a phone on its side.
-  const offset: [number, number] = shortLandscape() ? [0, 55] : innerWidth > 820 ? [-170, 130] : [0, 140];
+  // The always-open layer rail (left, wide screens) covers ~230 px, so land the point further right there.
+  const offset: [number, number] = shortLandscape() ? [0, 55] : innerWidth > 820 ? [matchMedia('(min-height: 560px)').matches ? -60 : -170, 130] : [0, 140];
   if (fly) map.flyTo({ center: lngLat, zoom: Math.max(map.getZoom(), 15), duration: 1200, offset });
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   popup.setLngLat(lngLat).setHTML(`<div class="pop">${html}</div>`).addTo(map);
