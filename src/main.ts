@@ -110,7 +110,7 @@ const T = {
     camNear: (name: string, m: number) => `📷 กล้องใกล้จุดนี้ (${m} ม.): ${name}`,
     traffyList: 'ประชาชนแจ้งล่าสุด (Traffy Fondue)', traffyEmpty: 'ไม่มีเรื่องแจ้งน้ำท่วมใน 24 ชม.', traffyOpen: 'ดูเรื่องนี้ใน Traffy Fondue', traffyMore: (n: number) => `ดูอีก ${n} เรื่อง`,
     noAlerts: 'ไม่มีจุดท่วมหนักในขณะนี้', loading: 'กำลังโหลดข้อมูลล่าสุด…', more: (n: number) => `ดูอีก ${n} จุด`, noDistricts: 'ยังไม่มีเขตที่มีน้ำท่วมขัง',
-    pts: 'จุดท่วม', reports: 'แจ้งเหตุ', since: 'ท่วมตั้งแต่', max: 'สูงสุด', updated: 'อัปเดต',
+    heavyLbl: 'ท่วมหนัก (≥20 ซม.)', pts: 'จุดท่วม', reports: 'แจ้งเหตุ', since: 'ท่วมตั้งแต่', max: 'สูงสุด', updated: 'อัปเดต',
     district: 'เขต', districtLbl: 'เขต', area: 'พื้นที่', status: 'สถานะ', maxRoad: 'น้ำท่วมถนนสูงสุด', rainMax: 'ฝน 24 ชม. สูงสุด',
     elevSim: 'ความสูงพื้นที่ (จำลอง)', marginSim: 'ระยะก่อนน้ำล้น (จำลอง)', waterNow: 'ระดับน้ำ', bank: 'ระดับตลิ่ง',
     toBank: 'ระยะก่อนล้นตลิ่ง', overBank: 'ล้นตลิ่ง', agency: 'หน่วยงาน', detail: 'ดูรายละเอียดที่ กทม.',
@@ -224,7 +224,7 @@ const T = {
     camNear: (name: string, m: number) => `📷 Nearest camera (${m} m): ${name}`,
     traffyList: 'Latest citizen reports (Traffy Fondue)', traffyEmpty: 'No flood reports in the last 24 h', traffyOpen: 'Open in Traffy Fondue', traffyMore: (n: number) => `Show ${n} more`,
     noAlerts: 'No severe flooding right now', loading: 'Loading latest data…', more: (n: number) => `Show ${n} more`, noDistricts: 'No district has road flooding',
-    pts: 'points', reports: 'reports', since: 'Since', max: 'Max', updated: 'Updated',
+    heavyLbl: 'Severe (≥20 cm)', pts: 'points', reports: 'reports', since: 'Since', max: 'Max', updated: 'Updated',
     district: '', districtLbl: 'District', area: 'Area', status: 'Status', maxRoad: 'Max road flooding', rainMax: 'Max 24h rain',
     elevSim: 'Ground height (simulated)', marginSim: 'Margin before flooding (simulated)', waterNow: 'Water level', bank: 'Bank level',
     toBank: 'Margin to bank', overBank: 'Over bank', agency: 'Agency', detail: 'Details at BMA',
@@ -1104,6 +1104,9 @@ function showProvinceByCode(code: string, at: maplibregl.LngLat) {
 }
 /** One-glance summary for the hover popup; '' = nothing to show. */
 const imgTag = (u?: string) => (u ? `<img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '');
+const inDistrict = (d: District, x: { lng: number; lat: number }) => x.lng >= d.bbox[0] && x.lng <= d.bbox[2] && x.lat >= d.bbox[1] && x.lat <= d.bbox[3] && inMultiPolygon([x.lng, x.lat], d.geom);
+/** One hover line for flooded highways: "🛣️ Flooded highways 3 · Impassable 1". */
+const hwLine = (hw: { impassable: boolean }[]) => (hw.length ? `🛣️ ${t().nearDoh} ${hw.length}${hw.some((h) => h.impassable) ? ` · ${t().dohNo} ${hw.filter((h) => h.impassable).length}` : ''}` : '');
 function hoverHtml(layer: string, i: number, id: unknown) {
   const L = t();
   const line = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' · ');
@@ -1113,7 +1116,9 @@ function hoverHtml(layer: string, i: number, id: unknown) {
       if (!d) return '';
       const lvl = simOn ? d.simLevel : d.level;
       return `<b>${L.district}${esc(dName(d))}</b>` + `<span style="color:${lvl < 0 ? 'inherit' : LEVEL_COLORS[lvl]}">${lvl < 0 ? L.noSensor : lvlName(lvl)}</span>` +
-        `<div class="s">${line(maxCm(d) > 0 && `${L.maxRoad} ${maxCm(d)} cm`, d.road.filter((r) => r.cm > 0).length > 0 && `${L.pts} ${d.road.filter((r) => r.cm > 0).length}`, d.reports > 0 && `${L.reports} ${d.reports}`)}</div>`;
+        `<div class="s">${line(maxCm(d) > 0 && `${L.maxRoad} ${maxCm(d)} cm`, d.road.filter((r) => r.cm > 0).length > 0 && `${L.pts} ${d.road.filter((r) => r.cm > 0).length}`, d.reports > 0 && `${L.reports} ${d.reports}`)}</div>` +
+        ((n) => (n ? `<div class="s" style="color:${LEVEL_COLORS[3]}">🔴 ${L.heavyLbl} ${n}</div>` : ''))(d.road.filter((r) => r.level === 3 && r.cm > 0 && !roadStuckH(r)).length) +
+        ((l) => (l ? `<div class="s">${l}</div>` : ''))(hwLine(dohLive().filter((h) => inDistrict(d, h))));
     }
     case 'road': { const r = road.items[i]; return r ? `<b>${esc(name(r))}</b><div class="s">${line(`${r.cm} cm`, r.cm > 0 ? lvlName(r.level) : L.noFloodReport, roadStuckH(r) > 0 && '⚠️', hhmm(r.updated))}</div>` : ''; }
     case 'canal': { const c = canals.items[i]; return c ? `<b>${esc(name(c))}</b><div class="s">${line(`${c.wl.toFixed(2)} ${L.msl}`, canalStatus(c), c.bank != null && `${L.toBank} ${(c.bank - c.wl).toFixed(2)} m`, trendTxt(c).split(' · ')[0], hhmm(c.updated))}</div>` : ''; }
@@ -1126,9 +1131,10 @@ function hoverHtml(layer: string, i: number, id: unknown) {
     case 'amp-fill': {
       const f = ampGeo?.features.find((x) => x.properties.id === Number(id)), st = ampStats.get(Number(id));
       if (!f || !st) return '';
-      return `<b>${L.ampTitle} ${esc(lang === 'th' ? f.properties.th || f.properties.en : f.properties.en)}</b><div class="s">${line(st.stations > 0 && L.ampStRow(st.stations, st.over, st.near), st.rainMax != null && `${st.rainMax} mm / 24h`) || L.ampNoStation}</div>`;
+      return `<b>${L.ampTitle} ${esc(lang === 'th' ? f.properties.th || f.properties.en : f.properties.en)}</b><div class="s">${line(st.stations > 0 && L.ampStRow(st.stations, st.over, st.near), st.rainMax != null && `${st.rainMax} mm / 24h`) || L.ampNoStation}</div>` +
+        (st.hw > 0 ? `<div class="s">🛣️ ${L.nearDoh} ${st.hw}${st.hwImpassable > 0 ? ` · ${L.dohNo} ${st.hwImpassable}` : ''}</div>` : '');
     }
-    case 'prov-fill': { const r = upstream?.provinces?.rows.find((x) => x.code === String(id)); return r ? `<b>${esc(lang === 'th' ? r.th : r.en)}</b><div class="s">${L.provRow(r.over, r.near, r.n)}</div>` : ''; }
+    case 'prov-fill': { const r = upstream?.provinces?.rows.find((x) => x.code === String(id)); return r ? `<b>${esc(lang === 'th' ? r.th : r.en)}</b><div class="s">${L.provRow(r.over, r.near, r.n)}</div>` + ((l) => (l ? `<div class="s">${l}</div>` : ''))(hwLine(dohLive().filter((h) => h.province === r.th))) : ''; }
   }
   return '';
 }
