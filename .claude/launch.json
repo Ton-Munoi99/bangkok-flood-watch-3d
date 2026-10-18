@@ -1,59 +1,73 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
-      "port": 5173
-    },
-    {
-      "name": "preview",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "preview",
-        "--",
-        "--port",
-        "4180",
-        "--strictPort"
-      ],
-      "port": 4180
-    },
-    {
-      "name": "dev-history",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev",
-        "--",
-        "--port",
-        "5175",
-        "--strictPort"
-      ],
-      "port": 5175,
-      "env": {
-        "HISTORY_DIR": "/private/tmp/claude-501/-Users-macbook-Desktop-Bangkok-flood-map/c3f30c2f-f7a6-4ffc-9d29-28a1ac2c6bd5/scratchpad/backfill"
-      }
-    },
-    {
-      "name": "dev-mock",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev",
-        "--",
-        "--port",
-        "5176",
-        "--strictPort"
-      ],
-      "port": 5176,
-      "env": {
-        "VITE_DATA_MODE": "mock"
-      }
-    }
-  ]
+ "version": "0.0.1",
+ "configurations": [
+  {
+   "name": "dev",
+   "runtimeExecutable": "npm",
+   "runtimeArgs": [
+    "run",
+    "dev"
+   ],
+   "port": 5173
+  },
+  {
+   "name": "preview",
+   "runtimeExecutable": "npm",
+   "runtimeArgs": [
+    "run",
+    "preview",
+    "--",
+    "--port",
+    "4180",
+    "--strictPort"
+   ],
+   "port": 4180
+  },
+  {
+   "name": "dev-history",
+   "runtimeExecutable": "npm",
+   "runtimeArgs": [
+    "run",
+    "dev",
+    "--",
+    "--port",
+    "5175",
+    "--strictPort"
+   ],
+   "port": 5175,
+   "env": {
+    "HISTORY_DIR": "/private/tmp/claude-501/-Users-macbook-Desktop-Bangkok-flood-map/c3f30c2f-f7a6-4ffc-9d29-28a1ac2c6bd5/scratchpad/backfill"
+   }
+  },
+  {
+   "name": "dev-mock",
+   "runtimeExecutable": "npm",
+   "runtimeArgs": [
+    "run",
+    "dev",
+    "--",
+    "--port",
+    "5176",
+    "--strictPort"
+   ],
+   "port": 5176,
+   "env": {
+    "VITE_DATA_MODE": "mock"
+   }
+  },
+  {
+   "name": "dev-live",
+   "runtimeExecutable": "env",
+   "runtimeArgs": [
+    "HISTORY_DIR=.dev-history",
+    "npm",
+    "run",
+    "dev",
+    "--",
+    "--port",
+    "5174"
+   ],
+   "port": 5174
+  }
+ ]
 }

@@ -8,3 +8,13 @@ dist
 # Local Netlify folder
 .netlify
 .playwright-mcp/
+
+# local copy of the live /api/history feeds for `dev-live` (see README)
+.dev-history/
+
+# data video: generated files (voice, renders, copied studio assets) — only the authored files are kept
+video/out/
+video/studio_th/
+video/studio/*
+!video/studio/scenes.js
+!video/studio/viz-gate.md
