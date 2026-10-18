@@ -45,18 +45,18 @@ const T = {
     riverNote: 'ระดับน้ำ ม.รทก. เทียบตลิ่งของสถานี (ไม่ใช่ความสูงคันกั้นน้ำ) · กรมชลประทาน / สสน. ผ่าน ThaiWater · เรียงจากต้นน้ำลงมา กทม.',
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
     upDam: (pct: number, inflow: number, release: number) => `ความจุ ${pct.toFixed(0)}% · ไหลเข้า ${inflow.toFixed(1)} · ระบาย ${release.toFixed(1)} ล้าน ลบ.ม./วัน`,
-    upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upOthers: (n: number) => `เขื่อนอื่นทั่วประเทศ (${n})`, upNone: 'ยังไม่มีข้อมูลเขื่อน',
+    upNote: 'ข้อมูลกรมชลประทาน ผ่านคลังข้อมูลน้ำแห่งชาติ · น้ำจากเขื่อนเหล่านี้ไหลลงเจ้าพระยาผ่าน กทม.', upOthers: (n: number, full: number) => `เขื่อนอื่นทั่วประเทศ (${n})${full ? ` · เต็ม/เกินความจุ ${full}` : ''}`, upNone: 'ยังไม่มีข้อมูลเขื่อน',
     provTitle: (o: number, n: number, p: number) => `🗺️ ต่างจังหวัด · ล้นตลิ่ง ${o}/${n} สถานี (${p} จังหวัด)`, provRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น ${nr} · จาก ${n} สถานี`,
     provNote: 'สถานีโทรมาตรทั่วประเทศ ผ่านคลังข้อมูลน้ำแห่งชาติ (สสน.) · นับเฉพาะสถานีที่รายงานภายใน 6 ชม.', provNone: 'ไม่มีจังหวัดที่น้ำล้นหรือใกล้ล้นตลิ่ง', provOpen: 'ดูสถานีที่ ThaiWater ↗',
     tmdTitle: '📢 ประกาศเตือนภัย กรมอุตุฯ', tmdRead: 'อ่านประกาศเต็มที่ tmd.go.th ↗',
     chart24: '24 ชม.', chartDays: (d: number) => `${d} วัน`, chart30Note: (n: number) => `เรามีข้อมูลเก็บไว้ ${n} วัน (เพิ่งเริ่มเก็บ)`, chartLoading: (d: number) => `กำลังโหลดข้อมูล ${d} วัน…`, chartTitle: (r: string) => `ระดับย้อนหลัง ${r}`, chartNote: 'จากข้อมูลที่เราเก็บทุก 10 นาที · เส้นประแดง = ตลิ่ง',
-    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)', placeBtn: '🌐 ค้นหาชื่อสถานที่/ซอยบนแผนที่ (OpenStreetMap)', placeBusy: 'กำลังค้นหา…', placeNone: 'OpenStreetMap ไม่พบสถานที่นี้ใน กทม.', placeErr: 'ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง', placeNote: 'ส่งคำค้นไปที่ nominatim.openstreetmap.org เฉพาะเมื่อกดปุ่มนี้ · ตำแหน่งจาก OpenStreetMap © ผู้ร่วมพัฒนา (ODbL) · เป็นเพียงตำแหน่ง ไม่ใช่ข้อมูลน้ำท่วม',
+    sideSearchPh: '🔍 ค้นหา เช่น ซอยสุทธิสาร, คลองลาดพร้าว, บางกะปิ', searchFound: (n: number) => (n > 100 ? `พบ ${n} รายการ · แสดง 100 รายการแรก (พิมพ์เพิ่มเพื่อให้แคบลง)` : `พบ ${n} รายการ`), searchNear: (w: string, n: number) => `ไม่พบตรงตัว · ผลที่ใกล้เคียง "${w}" ${n} รายการ`, searchNone: 'ไม่พบในข้อมูลตอนนี้ (ลองคำสั้นลง หรือชื่ออื่น)', placeBtn: '🌐 ค้นหาชื่อสถานที่/ซอยบนแผนที่ (OpenStreetMap)', placeBusy: 'กำลังค้นหา…', placeNone: 'OpenStreetMap ไม่พบสถานที่นี้', placeErr: 'ค้นหาไม่สำเร็จ ลองใหม่อีกครั้ง', placeNote: 'ส่งคำค้นไปที่ nominatim.openstreetmap.org เฉพาะเมื่อกดปุ่มนี้ · ตำแหน่งจาก OpenStreetMap © ผู้ร่วมพัฒนา (ODbL) · เป็นเพียงตำแหน่ง ไม่ใช่ข้อมูลน้ำท่วม',
     sk: { district: 'เขต', road: 'น้ำท่วมถนน', canal: 'คลอง/แม่น้ำ', rain: 'ฝน', event: 'เหตุการณ์', doh: 'ทางหลวง', report: 'Traffy', cam: 'กล้อง' } as Record<string, string>,
     nearBtn: '📍 รอบบ้านฉัน', nearTitle: '📍 ดูสถานการณ์รอบบ้าน (รัศมี 2 กม.)', nearGps: '📡 ใช้ตำแหน่งปัจจุบันของฉัน', nearGo: 'ดู',
     nearPh: 'วางลิงก์ Google Maps หรือพิกัด เช่น 13.75, 100.55', nearBad: 'อ่านพิกัดไม่ได้ · ลิงก์สั้น (maps.app.goo.gl) ให้เปิดก่อนแล้วคัดลอก URL เต็มจากแถบที่อยู่ หรือพิมพ์พิกัด',
     nearGpsFail: 'ขอตำแหน่งไม่ได้ (ไม่ได้อนุญาตหรือเครื่องไม่รองรับ) · วางลิงก์หรือพิกัดแทนได้', nearWait: 'กำลังหาตำแหน่ง…',
     nearNote: 'ตำแหน่งใช้คำนวณในเครื่องนี้เท่านั้น ไม่ถูกส่งหรือบันทึกที่ใด (ยกเว้นถ้ากด "ดูพยากรณ์ฝนจุดนี้" ตำแหน่งโดยประมาณจะถูกส่งไปเปิดที่ Windy)',
-    nearFc: '🌧️ ดูพยากรณ์ฝนจุดนี้ (Windy) ↗', nearFcNote: 'เป็นการพยากรณ์ ไม่ใช่ค่าวัดจริง', nearHere: 'รอบจุดนี้ 2 กม.', nearOutside: 'อยู่นอก กทม. · ข้อมูลในแผนที่นี้ครอบคลุมเฉพาะ กทม.',
+    nearFc: '🌧️ ดูพยากรณ์ฝนจุดนี้ (Windy) ↗', nearFcNote: 'เป็นการพยากรณ์ ไม่ใช่ค่าวัดจริง', nearHere: 'รอบจุดนี้ 2 กม.', nearOutside: 'อยู่นอก กทม. · ใช้สถานีวัดน้ำ/ฝนทั่วประเทศ (ไม่มีเซนเซอร์ถนนนอก กทม.)', nearGauge: 'สถานีวัดน้ำใกล้สุด', nearGauges: 'สถานีในรัศมี 10 กม.', gaugeState: (lv: number) => (lv >= 5 ? 'ล้นตลิ่ง' : lv === 4 ? 'ใกล้ล้นตลิ่ง' : 'ยังไม่ถึงเกณฑ์เฝ้าระวัง'), gaugeCount: (n: number, o: number, nr: number) => `${n} สถานี · ล้นตลิ่ง ${o} · ใกล้ล้น ${nr}`,
     nearRoad: 'ถนนน้ำท่วม', nearCanal: 'คลองล้น/ใกล้ล้นตลิ่ง', nearRain: 'ฝนสถานีใกล้สุด', nearEvents: 'เหตุการณ์จราจร/น้ำท่วม', nearReports: 'แจ้งน้ำท่วม Traffy',
     nearNone: '✅ ไม่พบรายงานน้ำท่วมในรัศมี 2 กม.', nearPts: (n: number, max: number) => `${n} จุด · สูงสุด ${max} ซม.`,
     linksBtn: '🔗 ลิงก์', linksTitle: '🔗 ลิงก์ติดตามสถานการณ์',
@@ -159,18 +159,18 @@ const T = {
     riverNote: 'Water level (m MSL) against each gauge\'s bank, not the flood-wall height · RID / HII via ThaiWater · listed from upstream down to Bangkok',
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
     upDam: (pct: number, inflow: number, release: number) => `${pct.toFixed(0)}% full · in ${inflow.toFixed(1)} · out ${release.toFixed(1)} million m³/day`,
-    upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upOthers: (n: number) => `Other dams nationwide (${n})`, upNone: 'No dam data yet',
+    upNote: 'Royal Irrigation Dept. data via ThaiWater · these dams drain down the Chao Phraya through Bangkok', upOthers: (n: number, full: number) => `Other dams nationwide (${n})${full ? ` · ${full} full or over` : ''}`, upNone: 'No dam data yet',
     provTitle: (o: number, n: number, p: number) => `🗺️ Other provinces · over bank ${o}/${n} stations (${p} provinces)`, provRow: (o: number, nr: number, n: number) => `over bank ${o} · near ${nr} · of ${n} stations`,
     provNote: 'Nationwide telemetry via ThaiWater (HII) · only stations reporting within 6 h', provNone: 'No province has water over or near bank', provOpen: 'Stations on ThaiWater ↗',
     tmdTitle: '📢 TMD weather warnings', tmdRead: 'Full announcement (Thai) at tmd.go.th ↗',
     chart24: '24 h', chartDays: (d: number) => `${d} days`, chart30Note: (n: number) => `we only have ${n} days recorded so far`, chartLoading: (d: number) => `Loading ${d} days…`, chartTitle: (r: string) => `History, last ${r}`, chartNote: 'From readings we record every 10 min · red dashes = bank',
-    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)', placeBtn: '🌐 Find a place or soi on the map (OpenStreetMap)', placeBusy: 'Searching…', placeNone: 'OpenStreetMap found nothing in Bangkok for this.', placeErr: 'Search failed, please retry.', placeNote: 'Your query goes to nominatim.openstreetmap.org only when you press this button · positions © OpenStreetMap contributors (ODbL) · a location only, not flood data',
+    sideSearchPh: '🔍 Search, e.g. Soi Sutthisan, Khlong Lat Phrao, Bang Kapi', searchFound: (n: number) => (n > 100 ? `${n} found · showing the first 100 (type more to narrow)` : `${n} found`), searchNear: (w: string, n: number) => `No exact match · ${n} close results for "${w}"`, searchNone: 'Nothing matches right now (try a shorter word)', placeBtn: '🌐 Find a place or soi on the map (OpenStreetMap)', placeBusy: 'Searching…', placeNone: 'OpenStreetMap found nothing for this.', placeErr: 'Search failed, please retry.', placeNote: 'Your query goes to nominatim.openstreetmap.org only when you press this button · positions © OpenStreetMap contributors (ODbL) · a location only, not flood data',
     sk: { district: 'District', road: 'Road flood', canal: 'Canal/river', rain: 'Rain', event: 'Incident', doh: 'Highway', report: 'Traffy', cam: 'Camera' } as Record<string, string>,
     nearBtn: '📍 Near me', nearTitle: '📍 What\'s around me (2 km radius)', nearGps: '📡 Use my current location', nearGo: 'Go',
     nearPh: 'Paste a Google Maps link or coordinates, e.g. 13.75, 100.55', nearBad: 'Couldn\'t read coordinates · for short links (maps.app.goo.gl) open them first and copy the full URL, or type coordinates',
     nearGpsFail: 'Location unavailable (permission denied or unsupported) · paste a link or coordinates instead', nearWait: 'Finding you…',
     nearNote: 'Your location is only used on this device; it is never sent or stored (unless you tap "Rain forecast here", which opens Windy at the approximate spot).',
-    nearFc: '🌧️ Rain forecast here (Windy) ↗', nearFcNote: 'a forecast, not a measurement', nearHere: 'Within 2 km of here', nearOutside: 'Outside Bangkok · this map only covers Bangkok',
+    nearFc: '🌧️ Rain forecast here (Windy) ↗', nearFcNote: 'a forecast, not a measurement', nearHere: 'Within 2 km of here', nearOutside: 'Outside Bangkok · using nationwide water/rain gauges (no road sensors outside Bangkok)', nearGauge: 'Nearest water gauge', nearGauges: 'Gauges within 10 km', gaugeState: (lv: number) => (lv >= 5 ? 'over bank' : lv === 4 ? 'near bank' : 'below watch level'), gaugeCount: (n: number, o: number, nr: number) => `${n} gauges · over bank ${o} · near ${nr}`,
     nearRoad: 'Flooded roads', nearCanal: 'Canals over/near bank', nearRain: 'Nearest rain gauge', nearEvents: 'Traffic/flood incidents', nearReports: 'Traffy flood reports',
     nearNone: '✅ No flooding reported within 2 km', nearPts: (n: number, max: number) => `${n} pts · max ${max} cm`,
     linksBtn: '🔗 Links', linksTitle: '🔗 Follow the situation',
@@ -899,7 +899,7 @@ function render() {
     // cp flag missing = blob saved before all dams were kept -> treat as the Chao Phraya four.
     const others = upstream.dams.filter((d) => d.cp === false);
     const dams = upstream.dams.filter((d) => d.cp !== false).map((d) => damItem(d, false)).join('')
-      + (others.length ? `<details><summary class="empty">${L.upOthers(others.length)}</summary>${others.map((d) => damItem(d, true)).join('')}</details>` : '');
+      + (others.length ? `<details${nationOn ? ' open' : ''}><summary class="empty">${L.upOthers(others.length, others.filter((d) => d.pct >= 100).length)}</summary>${others.map((d) => damItem(d, true)).join('')}</details>` : '');
     html += section('upstream', upstream.c13 ? `${L.upTitle} · ${upstream.c13.discharge.toLocaleString()} ${L.upUnit}` : L.upTitle,
       c13 + (dams || `<div class="empty">${L.upNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.upNote}</div>`);
   }
@@ -1187,8 +1187,8 @@ function wireSearch() {
     if (!btn) return;
     const L = t(); btn.textContent = L.placeBusy;
     try {
-      // Nominatim: one request per click (its policy forbids autocomplete), limited to the Bangkok box.
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&accept-language=${lang}&countrycodes=th&viewbox=100.3,13.95,100.95,13.45&bounded=1&q=${encodeURIComponent(input.value.trim())}`, { signal: AbortSignal.timeout(10_000) });
+      // Nominatim: one request per click (its policy forbids autocomplete); limited to the Bangkok box unless 🗺️ provinces is on.
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&accept-language=${lang}&countrycodes=th${nationOn ? '' : '&viewbox=100.3,13.95,100.95,13.45&bounded=1'}&q=${encodeURIComponent(input.value.trim())}`, { signal: AbortSignal.timeout(10_000) });
       if (!r.ok) throw new Error(String(r.status));
       places = ((await r.json()) as { lon: string; lat: string; display_name: string }[]).map((x) => ({ lng: +x.lon, lat: +x.lat, name: x.display_name }));
       btn.outerHTML = (places.length ? places.map((p, i) => `<button class="item" style="--c:#38bdf8" data-pl="${i}"><div class="t"><span>${esc(p.name.split(',').slice(0, 2).join(','))}</span><span>📍</span></div><div class="s">${esc(p.name)}</div></button>`).join('') : `<div class="empty">${L.placeNone}</div>`) + `<div class="empty">${L.placeNote}</div>`;
@@ -1323,17 +1323,26 @@ function showNear(p: { lng: number; lat: number }) {
   const near = <T extends { lng: number; lat: number }>(xs: T[]) => xs.filter((x) => metres(p, x) <= 2000);
   const flooded = near(liveRoad()).filter((r) => r.cm > 0);
   const canalHits = near(canals.items).filter((c) => c.situation >= 4);
-  const evs = near(events.items), reps = near(reports.items), hws = near(dohLive());
+  // Highways near this spot regardless of the 🗺️ toggle (it only decides what the map draws).
+  const evs = near(events.items), reps = near(reports.items), hws = near(historyAt == null ? doh.items : []);
   let gauge: Rain | null = null;
-  for (const r of rain.items) if (!gauge || metres(p, r) < metres(p, gauge)) gauge = r;
+  for (const r of rain.items) if (metres(p, r) <= 10_000 && (!gauge || metres(p, r) < metres(p, gauge))) gauge = r;
   const d = findDistrict(p.lng, p.lat);
-  const any = flooded.length || canalHits.length || evs.length || reps.length || hws.length;
+  // Outside Bangkok: the nationwide ThaiWater points (water level state, 24 h rain) within 10 km.
+  const pt = (x: [number, number, number]) => ({ lng: x[0], lat: x[1], v: x[2] });
+  const nat = !d && historyAt == null ? upstream?.nation : null;
+  const wl10 = (nat?.wl ?? []).map(pt).filter((x) => metres(p, x) <= 10_000).sort((a, b) => metres(p, a) - metres(p, b));
+  const rn10 = (nat?.rain ?? []).map(pt).filter((x) => metres(p, x) <= 10_000).sort((a, b) => metres(p, a) - metres(p, b));
+  const wlOver = wl10.filter((x) => x.v >= 5).length, wlNear = wl10.filter((x) => x.v === 4).length;
+  const any = flooded.length || canalHits.length || evs.length || reps.length || hws.length || wlOver || wlNear;
   open([p.lng, p.lat], `<b>📍 ${L.nearHere}</b>` + (d ? row(L.district, esc(dName(d))) : `<div class="empty">${L.nearOutside}</div>`) +
     (flooded.length ? row(L.nearRoad, L.nearPts(flooded.length, Math.max(...flooded.map((r) => r.cm)))) : '') +
     (canalHits.length ? row(L.nearCanal, canalHits.map((c) => esc(name(c))).slice(0, 3).join(', ')) : '') +
     (hws.length ? row(L.nearDoh, String(hws.length)) : '') + (evs.length ? row(L.nearEvents, String(evs.length)) : '') + (reps.length ? row(L.nearReports, String(reps.length)) : '') +
     (any ? '' : `<div style="margin:4px 0">${L.nearNone}</div>`) +
-    (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`) : '') +
+    (wl10.length ? row(L.nearGauge, `${L.gaugeState(wl10[0].v)} (${(metres(p, wl10[0]) / 1000).toFixed(1)} km)`) + (wl10.length > 1 ? row(L.nearGauges, L.gaugeCount(wl10.length, wlOver, wlNear)) : '') : '') +
+    (gauge ? row(L.nearRain, `${esc(name(gauge))} (${(metres(p, gauge) / 1000).toFixed(1)} km) ${gauge.mm} mm/24h`)
+      : rn10.length ? row(L.nearRain, `${(metres(p, rn10[0]) / 1000).toFixed(1)} km · ${rn10[0].v} mm/24h`) : '') +
     // Point forecast for this spot. Only leaves the device if tapped; rounded to ~100 m.
     ((lat: string, lng: string) => `<div class="r"><a href="https://www.windy.com/${lat}/${lng}?rain,${lat},${lng},12" target="_blank" rel="noopener noreferrer">${L.nearFc}</a></div><div class="empty">${L.nearFcNote}</div>`)(p.lat.toFixed(3), p.lng.toFixed(3)), true);
 }
