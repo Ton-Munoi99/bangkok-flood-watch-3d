@@ -44,6 +44,7 @@ const T = {
     nRiverTitle: (n: number, o: number) => `🌊 แม่น้ำสายหลักทั่วประเทศ (${n} สาย) · มีจุดล้นตลิ่ง ${o} สาย`, nRiverRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น (< 0.5 ม.) ${nr} · จาก ${n} สถานี`,
     nRiverNote: 'สถานีที่มีระดับตลิ่ง รายงานภายใน 6 ชม. · เรียงตามระดับน้ำจากสูงไปต่ำ (โดยทั่วไปคือต้นน้ำ → ปลายน้ำ ช่วงใกล้ทะเลอาจสลับ) · สสน. ผ่าน ThaiWater · แม่น้ำเจ้าพระยาแยกไว้ในหัวข้อของตัวเอง',
     provChartTitle: (r: string) => `สถานีล้นตลิ่ง ย้อนหลัง ${r}`, provChartUnit: 'สถานี',
+    provAmpTitle: (n: number) => `รายอำเภอ (${n}) · เรียงจากหนักไปเบา`, provAmpMore: (n: number) => `ดูอีก ${n} อำเภอ`, provAmpLoading: 'กำลังโหลดข้อมูลรายอำเภอ…', ampWhy: (k: string) => ({ over: 'ล้นตลิ่ง', hwx: 'ทางหลวงผ่านไม่ได้', near: 'ใกล้ล้นตลิ่ง', hw: 'ทางหลวงน้ำท่วม', rain90: 'ฝนหนักมาก', rain35: 'ฝนหนัก', ok: 'ปกติ', none: 'ไม่มีสถานีวัด' })[k] ?? k,
     riverBars: 'แท่ง = ระดับน้ำ − ตลิ่ง แต่ละสถานี (ซ้าย = ต้นน้ำ, เกินเส้นแดง = สูงกว่าตลิ่ง) · รายชื่อสถานีเลือกโดยผู้พัฒนา อาจไม่ครบทุกจุด',
     riverNote: 'ระดับน้ำ ม.รทก. เทียบตลิ่งของสถานี (ไม่ใช่ความสูงคันกั้นน้ำ) · กรมชลประทาน / สสน. ผ่าน ThaiWater · เรียงจากต้นน้ำลงมา กทม.',
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
@@ -161,6 +162,7 @@ const T = {
     nRiverTitle: (n: number, o: number) => `🌊 Main rivers nationwide (${n}) · ${o} with a gauge over the bank`, nRiverRow: (o: number, nr: number, n: number) => `over bank ${o} · near (< 0.5 m) ${nr} · of ${n} gauges`,
     nRiverNote: 'Gauges with a bank level that reported in the last 6 h · ordered by water level, highest first (usually upstream → downstream; tidal reaches near the sea can swap) · HII via ThaiWater · the Chao Phraya has its own section',
     provChartTitle: (r: string) => `Gauges over the bank, last ${r}`, provChartUnit: 'gauges',
+    provAmpTitle: (n: number) => `By district (${n}) · worst first`, provAmpMore: (n: number) => `${n} more districts`, provAmpLoading: 'Loading districts…', ampWhy: (k: string) => ({ over: 'over bank', hwx: 'highway impassable', near: 'near bank', hw: 'highway flooded', rain90: 'very heavy rain', rain35: 'heavy rain', ok: 'normal', none: 'no gauge' })[k] ?? k,
     riverBars: 'Bars = water − bank per gauge (left = upstream; above the red line = over the bank) · station list is hand-picked and may be incomplete',
     riverNote: 'Water level (m MSL) against each gauge\'s bank, not the flood-wall height · RID / HII via ThaiWater · listed from upstream down to Bangkok',
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
@@ -1028,7 +1030,7 @@ function showEvent(e: FloodEvent, fly = false) {
 }
 let dwrObjectUrl = '';
 // ---------- 🗺️ nationwide mode ----------
-let provGeo: { features: { properties: { code: string } }[] } | null = null;
+let provGeo: { features: { properties: { code: string }; geometry: { coordinates: PolyRing[][] } }[] } | null = null;
 let provLoading = false;
 async function ensureProvinceLayer() {
   if (provGeo || provLoading) return; // ticking twice quickly must not add the source twice
@@ -1047,13 +1049,17 @@ async function ensureProvinceLayer() {
 // Amphoe (district) view: loaded the first time someone zooms in with 🗺️ on; replaces province colours from AMP_ZOOM.
 const AMP_ZOOM = 7.5;
 type AmpFeature = { properties: { id: number; en: string; th: string; prov: string; code: string }; geometry: { coordinates: PolyRing[][] } };
-let ampGeo: { features: AmpFeature[] } | null = null, ampLoading = false;
+let ampGeo: { features: AmpFeature[] } | null = null, ampLoad: Promise<void> | null = null;
 const ampBox = new Map<number, [number, number, number, number]>();
 const ampStats = new Map<number, { over: number; near: number; stations: number; rainMax: number | null; hwImpassable: number; hw: number }>();
-async function ensureAmphoeLayer() {
-  if (ampGeo || ampLoading || !nationOn || map.getZoom() < AMP_ZOOM - 0.5) return;
-  ampLoading = true;
-  try { ampGeo = await (await fetch(amphoeGeoUrl)).json(); } finally { ampLoading = false; } // a failed load retries on the next zoom
+/** Loads the amphoe layer once; `force` = load now whatever the zoom (a province was opened). Callers can await it. */
+function ensureAmphoeLayer(force = false): Promise<void> {
+  if (ampGeo) return Promise.resolve();
+  if (!nationOn || (!force && map.getZoom() < AMP_ZOOM - 0.5)) return Promise.resolve();
+  return (ampLoad ??= loadAmphoe().catch((e) => { ampLoad = null; throw e; })); // a failed load retries on the next call
+}
+async function loadAmphoe() {
+  ampGeo = await (await fetch(amphoeGeoUrl)).json();
   for (const f of ampGeo!.features) ampBox.set(f.properties.id, bboxOf(f.geometry.coordinates));
   map.addSource('amphoe', { type: 'geojson', data: ampGeo as never, promoteId: 'id', attribution: 'District boundaries: geoBoundaries / Royal Thai Survey Dept., OCHA ROAP (CC BY 3.0 IGO)' });
   const lvl: maplibregl.ExpressionSpecification = ['coalesce', ['feature-state', 'level'], -1];
@@ -1117,7 +1123,7 @@ function setNation(on: boolean, move = true) {
   $<HTMLInputElement>('lyNation').checked = on;
   $('nationLbl').classList.toggle('on', on);
   if (on) ensureProvinceLayer();
-  if (on) ensureAmphoeLayer();
+  if (on) ensureAmphoeLayer().catch(() => {});
   // Warm the HTTP cache with the amphoe boundaries (~250 KB) so zooming in to amphoe level doesn't stall.
   if (on && !ampGeo) setTimeout(() => fetch(amphoeGeoUrl).catch(() => {}), 2500);
   for (const l of ['prov-fill', 'prov-line', 'amp-fill', 'amp-line']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
@@ -1140,7 +1146,7 @@ function provinceNow(code: string): ProvinceSum | null {
 }
 function showProvinceByCode(code: string, at: maplibregl.LngLat) {
   const r = provinceNow(code);
-  if (r) return showProvince(r, at);
+  if (r) return showProvince(r);
   open(at, `<div class="empty">${t().provNoData}</div>`);
 }
 /** One-glance summary for the hover popup; '' = nothing to show. */
@@ -1349,14 +1355,56 @@ function nearestSensorRow(d: District) {
   for (const r of road.items) { const m = metres(c, r); if (m < bestM) { best = r; bestM = m; } }
   return `<div class="empty" style="margin-top:4px">${esc(t().nearestSensor(name(best), (bestM / 1000).toFixed(1), best.cm))}</div>`;
 }
-function showProvince(p: ProvinceSum, at?: maplibregl.LngLat) {
+/** Province: zoom to the whole province at amphoe level (like a Bangkok district view) and list its amphoe, worst first. */
+function showProvince(p: ProvinceSum) {
+  const f = provGeo?.features.find((x) => x.properties.code === p.code);
+  if (f) {
+    const [w, sth, e, n] = bboxOf(f.geometry.coordinates);
+    const padding = shortLandscape() ? { top: 90, bottom: 20, left: 20, right: 70 } : innerWidth < 820 ? { top: 170, bottom: 120, left: 10, right: 10 } : { top: 40, bottom: 40, left: 260, right: 380 };
+    const cam = map.cameraForBounds([[w, sth], [e, n]], { padding });
+    map.flyTo({ center: cam?.center ?? [p.lng, p.lat], zoom: Math.max(AMP_ZOOM + 0.1, Math.min(cam?.zoom ?? 9, 10)), bearing: 0, pitch: 0, duration: 1500 });
+  } else map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
+  renderProvince(p);
+  // The amphoe list needs the amphoe boundaries; load them now and redraw the popup if it is still this province.
+  if (!ampGeo && historyAt == null) {
+    const me = lastShow;
+    ensureAmphoeLayer(true).then(() => { if (lastShow === me) renderProvince(p); }).catch(() => {});
+  }
+}
+function renderProvince(p: ProvinceSum) {
   const L = t();
-  if (!at) map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
-  lastShow = () => showProvince(p, at ?? new maplibregl.LngLat(p.lng, p.lat));
+  lastShow = () => renderProvince(p);
   const cams = dwrCams.filter((c) => c.province === p.th).length, hw = dohLive().filter((d) => d.province === p.th);
-  open(at ?? [p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (hw.length ? row(`🛣️ ${L.nearDoh}`, `${hw.length} · ${L.dohNo} ${hw.filter((d) => d.impassable).length}`) : '') + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
-    <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>` +
+  // Phones: pin the (long) popup to the province's top edge so it opens downwards, clear of the legend at the bottom.
+  const f = innerWidth < 820 ? provGeo?.features.find((x) => x.properties.code === p.code) : null;
+  const bb = f ? bboxOf(f.geometry.coordinates) : null;
+  open(bb ? [(bb[0] + bb[2]) / 2, bb[3]] : [p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (hw.length ? row(`🛣️ ${L.nearDoh}`, `${hw.length} · ${L.dohNo} ${hw.filter((d) => d.impassable).length}`) : '') + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') +
+    provAmphoeList(p) +
+    `<div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>` +
     chartBlock('prov', p.code, { unit: L.provChartUnit, digits: 0, color: LEVEL_COLORS[3], title: L.provChartTitle }));
+}
+/** Why an amphoe has its colour, in the same order amphoeLevel() weighs things. Nationwide colours describe rivers,
+ *  highways and rain — never "streets flooded" — so the label names the reason instead of a flood level. */
+const ampReason = (st: { over: number; near: number; stations: number; rainMax: number | null; hwImpassable: number; hw: number }) =>
+  st.over ? 'over' : st.hwImpassable ? 'hwx' : st.near ? 'near' : st.hw ? 'hw' : (st.rainMax ?? 0) > 90 ? 'rain90' : (st.rainMax ?? 0) > 35 ? 'rain35'
+    : st.stations || st.rainMax != null ? 'ok' : 'none';
+/** The province's amphoe as a list (worst first), each opening its own popup. Live mode only: amphoe have no history. */
+function provAmphoeList(p: ProvinceSum) {
+  const L = t();
+  if (historyAt != null) return '';
+  if (!ampGeo) return `<div class="empty" style="margin-top:6px">${L.provAmpLoading}</div>`;
+  colourAmphoe(); // make sure stats reflect the latest data
+  const rows = ampGeo.features.filter((f) => f.properties.code === p.code).map((f) => {
+    const st = ampStats.get(f.properties.id)!;
+    return { f, st, lvl: amphoeLevel(st) };
+  }).sort((a, b) => b.lvl - a.lvl || b.st.over - a.st.over || b.st.near - a.st.near || b.st.hw - a.st.hw || (b.st.rainMax ?? -1) - (a.st.rainMax ?? -1));
+  if (!rows.length) return '';
+  const item = ({ f, st, lvl }: (typeof rows)[number]) => `<button class="item" style="--c:${lvl < 0 ? NO_DATA_COLOR : LEVEL_COLORS[lvl]}" data-amp="${f.properties.id}">
+    <div class="t"><span>${esc(lang === 'th' ? f.properties.th || f.properties.en : f.properties.en)}</span><span>${L.ampWhy(ampReason(st))}</span></div>
+    <div class="s">${[st.stations ? L.ampStRow(st.stations, st.over, st.near) : '', st.rainMax != null ? `${st.rainMax} mm / 24h` : '', st.hw ? `🛣️ ${st.hw}${st.hwImpassable ? ` · ${L.dohNo} ${st.hwImpassable}` : ''}` : ''].filter(Boolean).join(' · ') || L.ampNoStation}</div></button>`;
+  const first = 6;
+  return `<div class="lbl-sm" style="margin:8px 0 4px;font-weight:600">${L.provAmpTitle(rows.length)}</div>` + rows.slice(0, first).map(item).join('') +
+    (rows.length > first ? `<details><summary class="empty">${L.provAmpMore(rows.length - first)}</summary>${rows.slice(first).map(item).join('')}</details>` : '');
 }
 /** 📍 near me: everything currently loaded within 2 km of a point, shown in the map popup. */
 function showNear(p: { lng: number; lat: number }) {
@@ -1427,7 +1475,7 @@ function wireControls() {
   toggle('lyCams', (on) => setVis(['cameras'], on));
   toggle('lyDwr', (on) => setVis(['dwr-cams'], on));
   toggle('lyDoh', (on) => setVis(['doh'], on));
-  map.on('zoomend', () => { ensureAmphoeLayer(); });
+  map.on('zoomend', () => { ensureAmphoeLayer().catch(() => {}); });
   $<HTMLInputElement>('lyNation').addEventListener('change', (e) => setNation((e.target as HTMLInputElement).checked));
   toggle('lyEvents', (on) => setVis(['events'], on));
   toggle('lyDistrict', (on) => setVis(['district-fill'], on));
@@ -1578,6 +1626,15 @@ function wireDialogs() {
     const d = b && districts.find((x) => x.code === b.dataset.shareDistrict);
     if (d) shareLink(districtUrl(d), b);
     if ((e.target as HTMLElement).closest('[data-chart-range]')) toggleChartRange();
+    const amp = (e.target as HTMLElement).closest<HTMLElement>('[data-amp]');
+    if (amp) {
+      const id = Number(amp.dataset.amp), bb = ampBox.get(id);
+      if (bb) {
+        const c = new maplibregl.LngLat((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2);
+        map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 10), duration: 1200 });
+        showAmphoe(id, c);
+      }
+    }
   });
   const nearDlg = $<HTMLDialogElement>('nearDlg'), nearMsg = $('nearMsg');
   $('nearBtn').addEventListener('click', () => { nearMsg.textContent = ''; $<HTMLInputElement>('nearInput').placeholder = t().nearPh; nearDlg.showModal(); });
