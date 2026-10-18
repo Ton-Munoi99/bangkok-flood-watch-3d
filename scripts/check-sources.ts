@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { bkkMs, extractJsonAfter, roadLevel } from '../src/data/sources.ts';
-import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, parseBmaFloodPage, matchesSearch, type DayFile, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, type Ring } from '../src/data/history.ts';
+import { DayBuilder, mergeDay, parseBmaHome, parseC13, parseDams, parseLongdoEvents, realBank, situation, slot, slotMs, parseLatLng, parseProvinces, parseTmdWarnings, thaiDay, sensorTrends, emptyDay, parseDoh, parseRiver, parseBmaFloodPage, matchesSearch, type DayFile, provinceLevel, inPolys, bboxOf, amphoeLevel, parseNation, parseRankings, parseRivers, provAt, type Ring } from '../src/data/history.ts';
 import { chartSvg, riverBarsSvg, stationSeries } from '../src/data/chart.ts';
 
 
@@ -250,4 +250,48 @@ console.log('search ok');
   assert.ok(svg.includes('+0.50 m') && svg.includes('-1.50 m'));
   assert.strictEqual(riverBarsSvg([{ code: 'A', th: 'ก', wl: 3, bank: 2.5 }], { over: 'r', near: 'y', ok: 'g' }), '');
   console.log('river bars ok');
+}
+
+// ---------- province summary history + nationwide rivers ----------
+{
+  const now = bkkMs('2026-10-18 12:00');
+  const b = new DayBuilder();
+  b.prov(bkkMs('2026-10-18 11:00'), [{ code: '14', n: 22, over: 12, near: 10 }]);
+  b.prov(bkkMs('2026-10-18 11:30'), [{ code: '14', n: 22, over: 13, near: 9 }, { code: '25', n: 13, over: 5, near: 1 }]);
+  const f = b.days.get('2026-10-18')!;
+  assert.deepStrictEqual(f.prov!['11:30']['14'], [22, 13, 9]);
+  // merging keeps earlier buckets and adds new ones
+  const merged = mergeDay(mergeDay(emptyDay(), { ...emptyDay(), prov: { '11:00': f.prov!['11:00'] } }), { ...emptyDay(), prov: { '11:30': f.prov!['11:30'] } });
+  assert.deepStrictEqual(Object.keys(merged.prov!).sort(), ['11:00', '11:30']);
+  assert.ok(mergeDay(emptyDay(), emptyDay()).prov === undefined);
+  // provAt: newest bucket at/before the time, max 45 min old
+  const files: [string, DayFile][] = [['2026-10-18', f]];
+  assert.deepStrictEqual(provAt(files, bkkMs('2026-10-18 11:40'))!.get('25'), [13, 5, 1]);
+  assert.deepStrictEqual(provAt(files, bkkMs('2026-10-18 11:10'))!.get('14'), [22, 12, 10]);
+  assert.strictEqual(provAt(files, bkkMs('2026-10-18 12:30')), null);
+  assert.strictEqual(provAt(files, bkkMs('2026-10-18 10:50')), null);
+  // chart series reads the over-bank count
+  assert.deepStrictEqual(stationSeries(files, 'prov', '14', 0, now).map((p) => p[1]), [12, 13]);
+
+  const g = (river: string, name: string, wl: string | null, bank: number | null, t = '2026-10-18 11:50', lat = 14.3) => ({
+    waterlevel_datetime: t, waterlevel_msl: wl, situation_level: 3, river_name: river, basin: { basin_name: { en: 'Mun Basin Basin' } },
+    station: { tele_station_lat: lat, tele_station_long: 100.5, tele_station_name: { th: name, en: '' }, min_bank: bank },
+    geocode: { province_code: '34', province_name: { th: 'อุบลราชธานี', en: 'Ubon Ratchathani' } } });
+  const rows = [
+    g('แม่น้ำมูล', 'ก', '120.5', 121), g('แม่น้ำมูล', 'ข', '110.2', 110), g('แม่น้ำมูล', 'ค', '130', 129), g('แม่น้ำมูล', 'ง', '100', 104),
+    g('แม่น้ำมูล', 'stale', '140', 141, '2026-10-18 01:00'), g('แม่น้ำมูล', 'nobank', '90', null), g('แม่น้ำมูล', 'nowl', null, 50),
+    g('แม่น้ำเจ้าพระยา', 'x', '1', 2), g('แม่น้ำเจ้าพระยา', 'y', '1', 2), g('แม่น้ำเจ้าพระยา', 'z', '1', 2), g('แม่น้ำเจ้าพระยา', 'w', '1', 2),
+    g('แม่น้ำสั้น', 'a', '5', 6), g('แม่น้ำสั้น', 'b', '4', 6),
+  ];
+  const rv = parseRivers(rows as never, now);
+  assert.strictEqual(rv.length, 1);                                         // Chao Phraya left out, short river dropped
+  assert.strictEqual(rv[0].basinEn, 'Mun Basin');
+  assert.deepStrictEqual(rv[0].gauges.map((x) => x.th), ['ค', 'ก', 'ข', 'ง']); // highest water first; stale/no bank/no level dropped
+  assert.strictEqual(rv[0].gauges.filter((x) => x.wl >= x.bank).length, 2);
+  // station names are escaped in the bar chart; long rivers label every n-th bar
+  const evil = riverBarsSvg([{ code: '', th: '<img src=x>', wl: 3, bank: 2 }, { code: 'C.1', th: 'ok', wl: 1, bank: 2 }], { over: 'r', near: 'y', ok: 'g' });
+  assert.ok(!evil.includes('<img') && evil.includes('&#60;img'));
+  const many = riverBarsSvg(Array.from({ length: 28 }, (_, i) => ({ code: '', th: 'g' + i, wl: 1, bank: 2 })), { over: 'r', near: 'y', ok: 'g' });
+  assert.strictEqual((many.match(/>g\d+<\/text>/g) ?? []).length, 14);
+  console.log('province history + rivers ok');
 }

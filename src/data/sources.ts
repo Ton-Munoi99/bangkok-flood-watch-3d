@@ -5,8 +5,9 @@
 
 import {
   LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, type TwLive, parseLatLng, BMA_FRESH_MS, SENSOR_SILENT_MS, realBank, type TwCanalRow, TW as TW_BASE, bkkMs, isActive, parseLongdoEvents, situation, slot, slotMs,
-  parseC13, extractJsonAfter, parseRiver, type RiverRow, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type TopRow, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
+  parseC13, provAt, extractJsonAfter, parseRiver, type RiverRow, sensorTrends, type Trend, type Dam, type DayFile, type EventBy, type FloodEvent, type DohFeed, type DohFlood, type Meta, type NationPoints, type ProvinceSum, type TopRow, type Provinces, type TmdFeed, type TmdWarning, type Upstream,
 } from './history.ts';
+export type { NationRiver } from './history.ts';
 export type { RiverRow, TopRow, NationPoints, DohFlood, Trend, Dam, FloodEvent, ProvinceSum, TmdWarning };
 export { bkkMs, parseLatLng };
 
@@ -261,7 +262,7 @@ async function reportsFromCollector(at: number): Promise<Report[]> {
 }
 
 // ---------- History (recorded every 10 min by netlify/functions/collect.mts) ----------
-export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report>; events: Result<FloodEvent>; traffic: number | null }
+export interface Snapshot { road: Result<RoadFlood>; canals: Result<Canal>; rain: Result<Rain>; reports: Result<Report>; events: Result<FloodEvent>; traffic: number | null; prov?: Map<string, [number, number, number]> | null }
 const WINDOW = 3600_000; // a reading counts as "current" at time T for up to an hour
 
 /** Dept. of Highways flooded sections, relayed hourly by the Mac collector. Older than 90 min = labelled; older than 6 h = hidden. */
@@ -355,7 +356,7 @@ export async function loadHistory(at: number): Promise<Snapshot> {
   const hasEvents = files.some(([, f]) => f.events);
   return {
     road: res(road), canals: res(canals), rain: res(rain), reports: { items: reports, snapshot: false },
-    events: { items: events, snapshot: false, stale: !hasEvents }, traffic: tb?.v ?? null,
+    events: { items: events, snapshot: false, stale: !hasEvents }, traffic: tb?.v ?? null, prov: provAt(files, at),
   };
 }
 

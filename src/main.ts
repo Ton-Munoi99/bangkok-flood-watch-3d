@@ -41,6 +41,9 @@ const T = {
     summaryNoRoad: (rain: string, reports: number) => `ไม่มีข้อมูลเซนเซอร์น้ำท่วมถนนของ กทม. จึงบอกไม่ได้ว่าถนนไหนท่วม`
       + (rain ? ` · ฝนสะสมสูงสุด ${rain}` : '') + ` · ประชาชนแจ้งน้ำท่วมผ่าน Traffy <b>${reports} เรื่อง</b> ใน 24 ชม.`,
     riverTitle: '🌊 แม่น้ำเจ้าพระยา (เหนือ → กทม.)', riverFlow: 'น้ำไหลผ่าน', riverSamsen: 'สามเสน', riverOver: (m: string) => `สูงกว่าตลิ่ง ${m} ม.`, riverBelow: (m: string) => `ต่ำกว่าตลิ่ง ${m} ม.`,
+    nRiverTitle: (n: number, o: number) => `🌊 แม่น้ำสายหลักทั่วประเทศ (${n} สาย) · มีจุดล้นตลิ่ง ${o} สาย`, nRiverRow: (o: number, nr: number, n: number) => `ล้นตลิ่ง ${o} · ใกล้ล้น (< 0.5 ม.) ${nr} · จาก ${n} สถานี`,
+    nRiverNote: 'สถานีที่มีระดับตลิ่ง รายงานภายใน 6 ชม. · เรียงตามระดับน้ำจากสูงไปต่ำ (โดยทั่วไปคือต้นน้ำ → ปลายน้ำ ช่วงใกล้ทะเลอาจสลับ) · สสน. ผ่าน ThaiWater · แม่น้ำเจ้าพระยาแยกไว้ในหัวข้อของตัวเอง',
+    provChartTitle: (r: string) => `สถานีล้นตลิ่ง ย้อนหลัง ${r}`, provChartUnit: 'สถานี',
     riverBars: 'แท่ง = ระดับน้ำ − ตลิ่ง แต่ละสถานี (ซ้าย = ต้นน้ำ, เกินเส้นแดง = สูงกว่าตลิ่ง) · รายชื่อสถานีเลือกโดยผู้พัฒนา อาจไม่ครบทุกจุด',
     riverNote: 'ระดับน้ำ ม.รทก. เทียบตลิ่งของสถานี (ไม่ใช่ความสูงคันกั้นน้ำ) · กรมชลประทาน / สสน. ผ่าน ThaiWater · เรียงจากต้นน้ำลงมา กทม.',
     upTitle: '🏞️ น้ำเหนือ (ลุ่มเจ้าพระยา)', upC13: 'เขื่อนเจ้าพระยา (C.13) ระบาย', upUnit: 'ลบ.ม./วิ',
@@ -155,6 +158,9 @@ const T = {
     summaryNoRoad: (rain: string, reports: number) => `No BMA road-flood sensor data, so flooded roads cannot be shown`
       + (rain ? ` · max rainfall ${rain}` : '') + ` · <b>${reports}</b> citizen flood reports on Traffy in 24h`,
     riverTitle: '🌊 Chao Phraya River (upstream → Bangkok)', riverFlow: 'Flow', riverSamsen: 'Samsen', riverOver: (m: string) => `${m} m above bank`, riverBelow: (m: string) => `${m} m below bank`,
+    nRiverTitle: (n: number, o: number) => `🌊 Main rivers nationwide (${n}) · ${o} with a gauge over the bank`, nRiverRow: (o: number, nr: number, n: number) => `over bank ${o} · near (< 0.5 m) ${nr} · of ${n} gauges`,
+    nRiverNote: 'Gauges with a bank level that reported in the last 6 h · ordered by water level, highest first (usually upstream → downstream; tidal reaches near the sea can swap) · HII via ThaiWater · the Chao Phraya has its own section',
+    provChartTitle: (r: string) => `Gauges over the bank, last ${r}`, provChartUnit: 'gauges',
     riverBars: 'Bars = water − bank per gauge (left = upstream; above the red line = over the bank) · station list is hand-picked and may be incomplete',
     riverNote: 'Water level (m MSL) against each gauge\'s bank, not the flood-wall height · RID / HII via ThaiWater · listed from upstream down to Bangkok',
     upTitle: '🏞️ Upstream (Chao Phraya basin)', upC13: 'Chao Phraya Dam (C.13) outflow', upUnit: 'm³/s',
@@ -309,6 +315,7 @@ let doh: Result<DohFlood> = { items: [], snapshot: false };
 // Bangkok is the focus: nationwide layers (province colours, highways, DWR cameras) show only when 🗺️ is ticked.
 const BKK_TH = 'กรุงเทพมหานคร';
 let nationOn = false;
+let histProv: Map<string, [number, number, number]> | null = null; // province summary at the history time (see loadHistory)
 try { nationOn = localStorage.getItem('nation') === '1'; } catch { /* storage blocked */ }
 const dohLive = () => (historyAt == null ? doh.items : []).filter((d) => nationOn || d.province === BKK_TH);
 const dwrShown = () => dwrCams.filter((c) => nationOn || c.province === BKK_TH);
@@ -326,14 +333,15 @@ const CHART_DAYS = [1, 3, 7, 30] as const;
 let chartDays = 1, dayFiles: [string, DayFile][] = [], dayFilesN = 0, lastShow: (() => void) | null = null;
 const DAY_MS = 86400_000;
 const rangeTxt = (d: number) => (d === 1 ? t().chart24 : t().chartDays(d));
-function chartBlock(kind: 'road' | 'canal', id: string, o: { bank?: number | null; unit: string; digits: number; color: string }) {
+function chartBlock(kind: 'road' | 'canal' | 'prov', id: string, o: { bank?: number | null; unit: string; digits: number; color: string; title?: (range: string) => string }) {
   if (historyAt != null) return '';
   const L = t(), now = Date.now(), from = now - chartDays * DAY_MS;
   const files = chartDays > 1 && dayFilesN >= chartDays ? dayFiles : trends?.files ?? [];
-  const svg = chartSvg(stationSeries(files, kind, id, from, now), { ...o, from, to: now, title: L.chartTitle(rangeTxt(chartDays)) });
+  const title = (o.title ?? L.chartTitle)(rangeTxt(chartDays));
+  const svg = chartSvg(stationSeries(files, kind, id, from, now), { ...o, from, to: now, title });
   if (!svg) return '';
   const next = CHART_DAYS[(CHART_DAYS.indexOf(chartDays as 1) + 1) % CHART_DAYS.length];
-  return `<div class="chartbox"><div class="r"><span>${L.chartTitle(rangeTxt(chartDays))}</span><button class="btn small" data-chart-range>${rangeTxt(next)}</button></div>${svg}<div class="empty">${L.chartNote}${chartDays === 30 && dayFiles.length < 30 ? ` · ${L.chart30Note(dayFiles.length)}` : ''}</div></div>`;
+  return `<div class="chartbox"><div class="r"><span>${title}</span><button class="btn small" data-chart-range>${rangeTxt(next)}</button></div>${svg}<div class="empty">${L.chartNote}${chartDays === 30 && dayFiles.length < 30 ? ` · ${L.chart30Note(dayFiles.length)}` : ''}</div></div>`;
 }
 async function toggleChartRange() {
   chartDays = CHART_DAYS[(CHART_DAYS.indexOf(chartDays as 1) + 1) % CHART_DAYS.length];
@@ -665,9 +673,10 @@ async function refresh(pending = fetchAll()) {
 
 async function showHistory(at: number) {
   historyAt = at;
+  histProv = null; // a failed load must not leave another time's summary on the map
   $('refresh').setAttribute('disabled', '');
   try {
-    ({ road, canals, rain, reports, events, traffic: trafficIdx } = await loadHistory(at));
+    ({ road, canals, rain, reports, events, traffic: trafficIdx, prov: histProv = null } = await loadHistory(at));
     loaded = true;
     $('histError').hidden = true;
   } catch (e) {
@@ -914,6 +923,24 @@ function render() {
       `<div class="empty" style="margin:0 0 6px">${L.provLegend}</div><div class="empty" style="margin:0 0 6px">${L.ampLegend}</div>` + (items.length ? list(items, 5, L.more) : `<div class="empty">${L.provNone}</div>`) + `<div class="empty" style="margin:4px 0 8px">${L.provNote}</div>`);
   }
 
+  // Main rivers nationwide (🗺️ mode): every river with 4+ fresh gauges that have a bank level, from the same pull.
+  const rivers = historyAt == null && nationOn ? upstream?.nation?.rivers : null;
+  if (rivers?.length) {
+    const rv = rivers.map((r) => {
+      const over = r.gauges.filter((g) => g.wl >= g.bank).length, near = r.gauges.filter((g) => g.wl < g.bank && g.bank - g.wl < 0.5).length;
+      const c = over ? LEVEL_COLORS[3] : near ? LEVEL_COLORS[2] : LEVEL_COLORS[0];
+      const nm = (g: { th: string; en: string }) => esc(lang === 'th' || !g.en ? g.th : g.en);
+      const bars = riverBarsSvg(r.gauges.map((g) => ({ code: '', th: lang === 'th' || !g.en ? g.th : g.en, wl: g.wl, bank: g.bank })), { over: LEVEL_COLORS[3], near: LEVEL_COLORS[2], ok: LEVEL_COLORS[0] });
+      const rows = r.gauges.map((g) => { const gap = g.bank - g.wl;
+        return `<button class="item" style="--c:${gap <= 0 ? LEVEL_COLORS[3] : gap < 0.5 ? LEVEL_COLORS[2] : LEVEL_COLORS[0]}" data-top="${g.lng},${g.lat}">
+        <div class="t"><span>${nm(g)}</span><span>${g.wl.toFixed(2)} m</span></div><div class="s">${esc(lang === 'th' ? g.prov : g.provEn || g.prov)} · ${gap <= 0 ? L.riverOver((-gap).toFixed(2)) : L.riverBelow(gap.toFixed(2))} · ${esc(g.time.slice(11, 16))}</div></button>`; }).join('');
+      return `<details class="rv" style="--c:${c}"><summary class="item" style="--c:${c}"><div class="t"><span>${esc(lang === 'th' ? r.th : r.basinEn ? `${r.th} · ${r.basinEn}` : r.th)}</span><span>${over}/${r.gauges.length}</span></div>
+        <div class="s">${L.nRiverRow(over, near, r.gauges.length)}</div></summary>${bars ? `<div class="chartbox">${bars}</div>` : ''}${rows}</details>`;
+    });
+    html += section('nrivers', L.nRiverTitle(rivers.length, rivers.filter((r) => r.gauges.some((g) => g.wl >= g.bank)).length),
+      list(rv, 5, L.more) + `<div class="empty" style="margin:4px 0 8px">${L.nRiverNote}</div>`);
+  }
+
   // ThaiWater-style top-10 lists (🗺️ mode only, like everything nationwide).
   const top = historyAt == null && nationOn ? upstream?.nation?.top : null;
   if (top) {
@@ -1076,7 +1103,10 @@ function colourProvinces() {
   const byCode = new Map((upstream?.provinces?.rows ?? []).map((r) => [r.code, r]));
   for (const f of provGeo.features) {
     const r = byCode.get(f.properties.code);
-    const level = historyAt == null ? provinceLevel(r, r ? doh.items.filter((d) => d.province === r.th) : []) : -1;
+    // History: stations only (highway reports aren't kept), from the stored summary nearest the chosen time.
+    const h = historyAt != null ? histProv?.get(f.properties.code) : null;
+    const level = historyAt == null ? provinceLevel(r, r ? doh.items.filter((d) => d.province === r.th) : [])
+      : h ? provinceLevel({ n: h[0], over: h[1], near: h[2] }, []) : -1;
     map.setFeatureState({ source: 'provinces', id: f.properties.code }, { level });
   }
   colourAmphoe();
@@ -1088,6 +1118,8 @@ function setNation(on: boolean, move = true) {
   $('nationLbl').classList.toggle('on', on);
   if (on) ensureProvinceLayer();
   if (on) ensureAmphoeLayer();
+  // Warm the HTTP cache with the amphoe boundaries (~250 KB) so zooming in to amphoe level doesn't stall.
+  if (on && !ampGeo) setTimeout(() => fetch(amphoeGeoUrl).catch(() => {}), 2500);
   for (const l of ['prov-fill', 'prov-line', 'amp-fill', 'amp-line']) if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', on ? 'visible' : 'none');
   setData('dwr-cams', fc(dwrShown(), (x) => [x.lng, x.lat], () => ({})));
   apply();
@@ -1099,8 +1131,15 @@ function setNation(on: boolean, move = true) {
   if (on) map.fitBounds([[97.3, 5.6], [105.7, 20.5]], { padding: pad, pitch: 0, duration: 1500 });
   else map.flyTo({ ...HOME, duration: 1500 });
 }
+/** A province's station summary for the time on screen: live, or the stored summary in history mode (names/centre from the live list). */
+function provinceNow(code: string): ProvinceSum | null {
+  const live = upstream?.provinces?.rows.find((x) => x.code === code);
+  if (historyAt == null) return live ?? null;
+  const h = histProv?.get(code);
+  return live && h ? { ...live, n: h[0], over: h[1], near: h[2] } : null;
+}
 function showProvinceByCode(code: string, at: maplibregl.LngLat) {
-  const r = upstream?.provinces?.rows.find((x) => x.code === code);
+  const r = provinceNow(code);
   if (r) return showProvince(r, at);
   open(at, `<div class="empty">${t().provNoData}</div>`);
 }
@@ -1136,7 +1175,7 @@ function hoverHtml(layer: string, i: number, id: unknown) {
       return `<b>${L.ampTitle} ${esc(lang === 'th' ? f.properties.th || f.properties.en : f.properties.en)}</b><div class="s">${line(st.stations > 0 && L.ampStRow(st.stations, st.over, st.near), st.rainMax != null && `${st.rainMax} mm / 24h`) || L.ampNoStation}</div>` +
         (st.hw > 0 ? `<div class="s">🛣️ ${L.nearDoh} ${st.hw}${st.hwImpassable > 0 ? ` · ${L.dohNo} ${st.hwImpassable}` : ''}</div>` : '');
     }
-    case 'prov-fill': { const r = upstream?.provinces?.rows.find((x) => x.code === String(id)); return r ? `<b>${esc(lang === 'th' ? r.th : r.en)}</b><div class="s">${L.provRow(r.over, r.near, r.n)}</div>` + ((l) => (l ? `<div class="s">${l}</div>` : ''))(hwLine(dohLive().filter((h) => h.province === r.th))) : ''; }
+    case 'prov-fill': { const r = provinceNow(String(id)); return r ? `<b>${esc(lang === 'th' ? r.th : r.en)}</b><div class="s">${L.provRow(r.over, r.near, r.n)}</div>` + ((l) => (l ? `<div class="s">${l}</div>` : ''))(hwLine(dohLive().filter((h) => h.province === r.th))) : ''; }
   }
   return '';
 }
@@ -1313,9 +1352,11 @@ function nearestSensorRow(d: District) {
 function showProvince(p: ProvinceSum, at?: maplibregl.LngLat) {
   const L = t();
   if (!at) map.flyTo({ center: [p.lng, p.lat], zoom: 9, pitch: 0, duration: 1500 });
+  lastShow = () => showProvince(p, at ?? new maplibregl.LngLat(p.lng, p.lat));
   const cams = dwrCams.filter((c) => c.province === p.th).length, hw = dohLive().filter((d) => d.province === p.th);
   open(at ?? [p.lng, p.lat], `<b>${esc(lang === 'th' ? p.th : p.en)}</b><div>${L.provRow(p.over, p.near, p.n)}</div>` + (hw.length ? row(`🛣️ ${L.nearDoh}`, `${hw.length} · ${L.dohNo} ${hw.filter((d) => d.impassable).length}`) : '') + (cams ? row(`📷 ${L.dwrAgency}`, String(cams)) : '') + `
-    <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>`);
+    <div class="r"><a href="https://www.thaiwater.net/water/wl" target="_blank" rel="noopener">${L.provOpen}</a></div>` +
+    chartBlock('prov', p.code, { unit: L.provChartUnit, digits: 0, color: LEVEL_COLORS[3], title: L.provChartTitle }));
 }
 /** 📍 near me: everything currently loaded within 2 km of a point, shown in the map popup. */
 function showNear(p: { lng: number; lat: number }) {

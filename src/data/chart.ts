@@ -5,12 +5,14 @@ export type Pt = [ms: number, v: number];
 
 /** One station's readings from day files, oldest first, inside [from, to]. Road: a bucket that exists means the feed
  *  was live, so a station missing from it read 0 cm. Canal: only buckets that actually carry the station. */
-export function stationSeries(files: [day: string, f: DayFile][], kind: 'road' | 'canal', id: string, from: number, to: number): Pt[] {
+export function stationSeries(files: [day: string, f: DayFile][], kind: 'road' | 'canal' | 'prov', id: string, from: number, to: number): Pt[] {
   const out: Pt[] = [];
-  for (const [day, f] of files) for (const [b, vals] of Object.entries(f[kind])) {
+  for (const [day, f] of files) for (const [b, vals] of Object.entries((kind === 'prov' ? f.prov : f[kind]) ?? {})) {
     const ms = slotMs(day, b);
     if (ms < from || ms > to) continue;
-    const v = vals[id] ?? (kind === 'road' ? 0 : undefined);
+    // prov: [stations, over bank, near] -> the over-bank count
+    const x = (vals as Record<string, number | [number, number, number]>)[id];
+    const v = Array.isArray(x) ? x[1] : x ?? (kind === 'road' ? 0 : undefined);
     if (v != null) out.push([ms, v]);
   }
   return out.sort((a, b) => a[0] - b[0]);
@@ -57,7 +59,10 @@ export function riverBarsSvg(rows: RiverBar[], colors: { over: string; near: str
   const slot = (w - L - R) / bars.length, bw = Math.max(6, slot - 4);
   const col = (d: number) => (d >= 0 ? colors.over : d > -0.5 ? colors.near : colors.ok);
   const f = (v: number) => (v > 0 ? '+' : '') + v.toFixed(2);
-  const short = (s: string) => (s.length > 14 ? s.slice(0, 13) + '…' : s);
+  // Station names come from ThaiWater: escape before they go into markup.
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  const short = (s: string) => esc(s.length > 14 ? s.slice(0, 13) + '…' : s);
+  const every = Math.ceil(bars.length / 14); // long rivers: label every n-th bar so labels don't collide (names are in the list and tooltips)
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="water minus bank along the river">` +
     `<line x1="${L}" y1="${y(0).toFixed(1)}" x2="${w - R}" y2="${y(0).toFixed(1)}" stroke="#f2495c" stroke-dasharray="4 3"/>` +
     `<text x="${L - 3}" y="${(y(0) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="currentColor" opacity=".7">0</text>` +
@@ -65,7 +70,7 @@ export function riverBarsSvg(rows: RiverBar[], colors: { over: string; near: str
     `<text x="${L - 3}" y="${h - B}" text-anchor="end" font-size="9" fill="currentColor" opacity=".7">${f(lo)}</text>` +
     bars.map((b, i) => {
       const x = L + i * slot + (slot - bw) / 2, y0 = y(0), y1 = y(b.d), top = Math.min(y0, y1), ht = Math.max(1.5, Math.abs(y1 - y0));
-      return `<g><title>${b.th} (${b.code}) ${f(b.d)} m</title><rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${ht.toFixed(1)}" rx="1.5" fill="${col(b.d)}"/>` +
-        `<text transform="translate(${(x + bw / 2 + 3).toFixed(1)} ${h - B + 4}) rotate(60)" font-size="7.5" fill="currentColor" opacity=".75">${short(b.th)}</text></g>`;
+      return `<g><title>${esc(b.th)}${b.code ? ` (${esc(b.code)})` : ''} ${f(b.d)} m</title><rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${ht.toFixed(1)}" rx="1.5" fill="${col(b.d)}"/>` +
+        `<text transform="translate(${(x + bw / 2 + 3).toFixed(1)} ${h - B + 4}) rotate(60)" font-size="7.5" fill="currentColor" opacity=".75">${i % every ? '' : short(b.th)}</text></g>`;
     }).join('') + `</svg>`;
 }

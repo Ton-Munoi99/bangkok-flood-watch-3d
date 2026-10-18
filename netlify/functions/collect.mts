@@ -7,7 +7,7 @@ import tls from 'node:tls';
 import { ALPHASSL_2025 } from './_shared/alphassl.ts';
 import {
   BMA_FRESH_MS, RIVER_PROVINCES, TW_LIVE_PATHS, type TwLive, addRiverHistory, DayBuilder, HISTORY_DAYS, addBmaCanals, LONGDO_EVENTS, LONGDO_TRAFFIC_INDEX, TRAFFY, TW, addCanal, addFloodRoad, addRain, addReports, parseLongdoEvents,
-  emptyDay, emptyMeta, mergeDay, parseDams, parseNation, parseProvinces, parseRankings, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type NationPoints, type Provinces, type TmdFeed, type Upstream,
+  emptyDay, emptyMeta, mergeDay, parseDams, parseNation, parseProvinces, parseRankings, parseRivers, parseTmdWarnings, slot, TMD_WARNINGS, type DayFile, type Meta, type NationPoints, type ProvinceSum, type Provinces, type TmdFeed, type Upstream,
 } from '../../src/data/history.ts';
 
 const getJson = async (url: string) => {
@@ -62,7 +62,8 @@ export default async () => {
   };
 
   // Nationwide telemetry is 1.4 MB, so summarise it per province every 30 min rather than every run.
-  const nation = async () => {
+  // Returns the fresh per-province rows when it refreshed (they also go into the day file as history), else null.
+  const nation = async (): Promise<ProvinceSum[] | null> => {
     const prov = (await store.get('provinces', { type: 'json' })) as Provinces | null;
     if (!prov || now - Date.parse(prov.fetchedAt) > 30 * 60_000) {
       // Same pull also feeds the amphoe view: station and rain-gauge points (rain_24h nationwide is ~0.7 MB, fast).
@@ -76,13 +77,17 @@ export default async () => {
         // Top-10 province lists, like ThaiWater's home page.
         const top = parseRankings(wl.value.waterlevel_data.data, rainRows, canal.status === 'fulfilled' ? canal.value.data : [], now);
         if (rain.status === 'rejected') top.rain = null; // shown as "unavailable", not as an empty list
-        if (pts.wl.length) await store.setJSON('nation', { fetchedAt: new Date(now).toISOString(), ...pts, top } satisfies NationPoints);
+        const rivers = parseRivers(wl.value.waterlevel_data.data, now);
+        if (pts.wl.length) await store.setJSON('nation', { fetchedAt: new Date(now).toISOString(), ...pts, top, rivers } satisfies NationPoints);
         if (rain.status === 'rejected') console.error('nation rain failed:', rain.reason);
+        return rows.length ? rows : null;
       } catch (e) { console.error('provinces failed:', e); }
     }
+    return null;
   };
 
-  const extras = Promise.allSettled([dams(), warnings(), nation()]);
+  const nationP = nation();
+  const extras = Promise.allSettled([dams(), warnings(), nationP]);
 
   // Copy of each live ThaiWater feed for the browsers (see TW_LIVE_PATHS): one fetch per run for everyone.
   const live: TwLive['data'] = {};
@@ -117,6 +122,18 @@ export default async () => {
   }
 
   await extras; // started at the top, alongside the per-run sources
+
+  // Province summary history, only on runs where the nationwide pull refreshed (~every 30 min). Written after the
+  // Bangkok day file so a slow nationwide pull can never cost the run its Bangkok readings.
+  const provRows = await nationP.catch(() => null);
+  if (provRows) {
+    const pb = new DayBuilder();
+    pb.prov(now, provRows);
+    for (const [day, add] of pb.days) {
+      const base = ((await store.get(`day/${day}`, { type: 'json' })) as DayFile | null) ?? emptyDay();
+      await store.setJSON(`day/${day}`, mergeDay(base, add));
+    }
+  }
 
   for (const prefix of ['day/', 'bmaday/']) {
     const { blobs } = await store.list({ prefix });

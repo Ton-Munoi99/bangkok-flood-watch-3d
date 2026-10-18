@@ -21,6 +21,8 @@ export interface DayFile {
   // Longdo/iTIC flood incidents, listed under every day they were active. Optional: older files lack it.
   events?: Record<string, [lng: number, lat: number, title: string, titleEn: string, text: string, start: string, stop: string, by: string, impassable: 0 | 1, image: string]>;
   traffic?: Record<string, number>; // bucket -> Longdo Bangkok traffic index (0–10)
+  // bucket -> province code -> [stations reporting, over bank, near bank]; written when the nationwide summary refreshes (~30 min).
+  prov?: Record<string, Record<string, [n: number, over: number, near: number]>>;
 }
 
 export const emptyMeta = (): Meta => ({ road: {}, canal: {}, rain: {} });
@@ -57,6 +59,7 @@ export function mergeDay(base: DayFile, add: DayFile) {
   Object.assign(base.reports, add.reports);
   base.events = { ...base.events, ...add.events };
   base.traffic = { ...base.traffic, ...add.traffic };
+  if (add.prov) base.prov = { ...base.prov, ...add.prov };
   return base;
 }
 
@@ -68,6 +71,11 @@ export class DayBuilder {
     return this.days.get(day)!;
   }
   /** Road: call for every reading (incl. zeros) so the bucket is marked as covered. */
+  prov(ms: number, rows: { code: string; n: number; over: number; near: number }[]) {
+    const { day, bucket } = slot(ms);
+    const f = this.get(day);
+    (f.prov ??= {})[bucket] = Object.fromEntries(rows.map((r) => [r.code, [r.n, r.over, r.near]]));
+  }
   road(ms: number, code: string, cm: number) {
     const { day, bucket } = slot(ms);
     const b = (this.get(day).road[bucket] ??= {});
@@ -326,6 +334,41 @@ export function parseProvinces(rows: TwNationRow[], now: number): ProvinceSum[] 
     .sort((a, b) => b.over - a.over || b.near - a.near || a.th.localeCompare(b.th, 'th'));
 }
 
+/** The province summary in effect at `at`: the newest stored bucket at or before it, if under 45 min old. */
+export function provAt(files: [day: string, f: DayFile][], at: number): Map<string, [number, number, number]> | null {
+  let best: [number, Record<string, [number, number, number]>] | null = null;
+  for (const [day, f] of files) for (const [b, v] of Object.entries(f.prov ?? {})) {
+    const ms = slotMs(day, b);
+    if (ms <= at && ms >= at - 45 * 60_000 && (!best || ms > best[0])) best = [ms, v];
+  }
+  return best ? new Map(Object.entries(best[1])) : null;
+}
+
+// ---------- main rivers nationwide, from the same nationwide waterlevel_load pull ----------
+export interface RiverGauge { th: string; en: string; prov: string; provEn: string; wl: number; bank: number; lng: number; lat: number; time: string }
+export interface NationRiver { th: string; basinEn: string; gauges: RiverGauge[] }
+/** Group fresh gauges that have a bank level by river. Gauges are ordered by water level, highest first: water runs
+ *  downhill, so that is upstream -> downstream along one river (a heuristic; tidal reaches near the sea can swap). The
+ *  Chao Phraya is left out — it has its own hand-picked section. Rivers with fewer than `min` gauges are dropped. */
+export function parseRivers(rows: TwNationRow[], now: number, min = 4, max = 15): NationRiver[] {
+  const by = new Map<string, NationRiver>();
+  for (const r of rows as (TwNationRow & { river_name?: string; waterlevel_msl?: string | null; basin?: { basin_name?: { en?: string } };
+    station: { tele_station_name?: { th?: string; en?: string }; min_bank?: number | string | null } })[]) {
+    const name = (r.river_name ?? '').trim(), wl = Number(r.waterlevel_msl), bank = realBank(r.station?.min_bank == null ? null : Number(r.station.min_bank));
+    if (!name || name === 'แม่น้ำเจ้าพระยา' || r.waterlevel_msl == null || !Number.isFinite(wl) || bank == null || now - bkkMs(r.waterlevel_datetime) > 6 * 3600_000) continue;
+    const lat = Number(r.station?.tele_station_lat), lng = Number(r.station?.tele_station_long);
+    if (!lat || !lng) continue;
+    let v = by.get(name);
+    if (!v) by.set(name, v = { th: name, basinEn: (r.basin?.basin_name?.en ?? '').replace(/ Basin Basin$/, ' Basin'), gauges: [] });
+    v.gauges.push({ th: r.station.tele_station_name?.th ?? '', en: r.station.tele_station_name?.en ?? '', prov: r.geocode?.province_name?.th ?? '', provEn: r.geocode?.province_name?.en ?? '',
+      wl, bank, lng: +lng.toFixed(4), lat: +lat.toFixed(4), time: r.waterlevel_datetime });
+  }
+  const over = (x: NationRiver) => x.gauges.filter((g) => g.wl >= g.bank).length;
+  return [...by.values()].filter((x) => x.gauges.length >= min)
+    .map((x) => ({ ...x, gauges: x.gauges.sort((a, b) => b.wl - a.wl) }))
+    .sort((a, b) => over(b) - over(a) || b.gauges.length - a.gauges.length).slice(0, max);
+}
+
 // ---------- trends + flat-lined sensors, from the last ~26 h of day files ----------
 /** flatH: hours the latest reading has stayed exactly flatV. d1h/d24h: latest minus the reading ~1 h / ~24 h earlier. */
 export interface Trend { flatV: number; flatH: number; d1h: number | null; d24h: number | null }
@@ -423,7 +466,7 @@ export function amphoeLevel(a: { over: number; near: number; stations: number; r
 
 /** Nationwide points for the amphoe view, kept compact: [lng, lat, situation 1–5] and [lng, lat, mm in 24 h].
  *  Readings older than 6 h are dropped (a silent gauge must not colour an amphoe). */
-export interface NationPoints { fetchedAt: string; wl: [number, number, number][]; rain: [number, number, number][]; top?: Rankings }
+export interface NationPoints { fetchedAt: string; wl: [number, number, number][]; rain: [number, number, number][]; top?: Rankings; rivers?: NationRiver[] }
 export function parseNation(wlRows: TwNationRow[], rainRows: { rain_24h: number | null; rainfall_datetime: string; station: { tele_station_lat: number; tele_station_long: number } }[], now: number) {
   const fresh = (t: string) => now - bkkMs(t) <= 6 * 3600_000;
   const xy = (s: { tele_station_lat: number; tele_station_long: number }) => [+Number(s?.tele_station_long).toFixed(4), +Number(s?.tele_station_lat).toFixed(4)] as const;
